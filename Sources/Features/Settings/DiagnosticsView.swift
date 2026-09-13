@@ -8,6 +8,8 @@ struct DiagnosticsView: View {
     @State private var results: [DiagnosticResult] = []
     @State private var running = false
     @State private var copied = false
+    @State private var dumpingTimetable = false
+    @State private var timetableCopied = false
 
     var body: some View {
         List {
@@ -24,6 +26,22 @@ struct DiagnosticsView: View {
                 .disabled(running)
             } footer: {
                 Text("Sprawdza każdy endpoint Librusa osobno. Skopiuj raport i wyślij go, jeśli coś nie działa.")
+            }
+
+            Section {
+                Button {
+                    Task { await dumpTimetable() }
+                } label: {
+                    HStack {
+                        Label(timetableCopied ? "Skopiowano" : "Kopiuj surowy JSON planu lekcji",
+                              systemImage: timetableCopied ? "checkmark" : "doc.on.doc")
+                        Spacer()
+                        if dumpingTimetable { ProgressView() }
+                    }
+                }
+                .disabled(dumpingTimetable)
+            } footer: {
+                Text("Pełna, niesformatowana odpowiedź Librusa dla ubiegłego, tego i przyszłego tygodnia — przydatne przy zgłaszaniu błędów planu lekcji (np. przeniesień). Zawiera imiona i nazwiska nauczycieli.")
             }
 
             if !results.isEmpty {
@@ -82,5 +100,19 @@ struct DiagnosticsView: View {
         results = []
         defer { running = false }
         results = await Diagnostics(session: app.session).run()
+    }
+
+    private func dumpTimetable() async {
+        Haptics.tap()
+        dumpingTimetable = true
+        timetableCopied = false
+        defer { dumpingTimetable = false }
+        let json = await Diagnostics(session: app.session).rawTimetableJSON()
+        UIPasteboard.general.setItems(
+            [[UTType.utf8PlainText.identifier: json]],
+            options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(10 * 60)]
+        )
+        Haptics.success()
+        withAnimation(Theme.Motion.quick) { timetableCopied = true }
     }
 }

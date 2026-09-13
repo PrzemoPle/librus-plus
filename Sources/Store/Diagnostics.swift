@@ -83,6 +83,27 @@ struct Diagnostics {
         }
     }
 
+    /// Raw (undecoded) JSON for this week and next — lets us see fields the typed
+    /// `RawLesson` model doesn't know about yet, e.g. when a lesson move doesn't
+    /// show up the way the decoded model expects.
+    func rawTimetableJSON() async -> String {
+        let thisWeek = LibrusDate.weekStart()
+        let weeks = [-7, 0, 7].map { LibrusDate.addDays($0, to: thisWeek) }
+        var parts: [String] = []
+        for week in weeks {
+            let key = LibrusDate.ymdString(week)
+            do {
+                let data = try await session.authorizedData(path: Librus.Path.timetable(weekStart: key))
+                let obj = try JSONSerialization.jsonObject(with: data)
+                let pretty = try JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])
+                parts.append("=== \(key) ===\n\(String(data: pretty, encoding: .utf8) ?? "?")")
+            } catch {
+                parts.append("=== \(key) === BŁĄD: \(error)")
+            }
+        }
+        return parts.joined(separator: "\n\n")
+    }
+
     static func report(_ results: [DiagnosticResult]) -> String {
         var lines = ["Librus Plus — diagnostyka \(Date().formattedPL("yyyy-MM-dd HH:mm"))"]
         for r in results {
