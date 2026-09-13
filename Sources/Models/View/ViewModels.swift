@@ -66,6 +66,9 @@ struct TimetableEntry: Identifiable, Codable, Hashable {
     let classroom: String?
     /// Set only when the room differs from the originally planned one.
     let originalClassroom: String?
+    /// Set only for a substitution lesson moved here from a different day —
+    /// i.e. `RawLesson.orgDate` differs from this entry's own day.
+    let originalDate: Date?
     let isCancelled: Bool
     let isSubstitution: Bool
     let note: String?
@@ -74,6 +77,8 @@ struct TimetableEntry: Identifiable, Codable, Hashable {
         guard let originalClassroom, let classroom else { return false }
         return !originalClassroom.isEmpty && originalClassroom != classroom
     }
+
+    var isMoved: Bool { originalDate != nil }
 
     var startMinutes: Int? { LibrusDate.minutesOfDay(start) }
     var endMinutes: Int? { LibrusDate.minutesOfDay(end) }

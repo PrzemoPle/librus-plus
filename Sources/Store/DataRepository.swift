@@ -420,7 +420,8 @@ final class DataRepository {
         let days: [TimetableDay] = raw.keys.sorted().compactMap { dateStr in
             guard let date = LibrusDate.fromYMD(dateStr) else { return nil }
             let slots = raw[dateStr] ?? []
-            let entries: [TimetableEntry] = slots.flatMap { $0 }.compactMap(mapLesson)
+            let entries: [TimetableEntry] = slots.flatMap { $0 }
+                .compactMap { self.mapLesson($0, date: date) }
                 .sorted { $0.lessonNo < $1.lessonNo }
             return TimetableDay(date: date, entries: entries)
         }
@@ -638,19 +639,28 @@ final class DataRepository {
         return (summary, items)
     }
 
-    private func mapLesson(_ l: RawLesson) -> TimetableEntry? {
+    private func mapLesson(_ l: RawLesson, date: Date) -> TimetableEntry? {
         guard let no = l.lessonNo, let from = l.hourFrom, let to = l.hourTo else { return nil }
         // Librus usually inlines `Classroom.Name`, but some schools return only
         // `Classroom.Id` — fall back to the `Classrooms` lookup table then.
         let room = roomName(l.classroom)
         let orgRoom = roomName(l.orgClassroom)
+        // A substitution whose `OrgDate` is a different day is really a lesson
+        // moved from that day, not a same-day teacher/subject swap.
+        let orgDate = LibrusDate.fromYMD(l.orgDate)
+        let moved = l.isSubstitution && orgDate != nil && !LibrusDate.isSameDay(orgDate!, date)
 
         var note: String?
         if l.isCancelled {
             note = "Lekcja odwołana"
         } else if l.isSubstitution {
-            var parts = ["Zastępstwo"]
-            if let orgName = l.orgSubject?.name, !orgName.isEmpty { parts.append("(było: \(orgName))") }
+            var parts = [moved ? "Przeniesiona" : "Zastępstwo"]
+            if moved, let orgDate {
+                parts.append("(było: \(orgDate.weekdayName.capitalized) \(orgDate.dayMonthShort))")
+            }
+            if let orgName = l.orgSubject?.name, !orgName.isEmpty, orgName != l.subject?.name {
+                parts.append(moved ? "— \(orgName)" : "(było: \(orgName))")
+            }
             if let orgTeacher = l.orgTeacher?.displayName { parts.append(orgTeacher) }
             note = parts.joined(separator: " ")
         }
@@ -660,6 +670,7 @@ final class DataRepository {
             teacher: l.teacher?.displayName,
             classroom: room,
             originalClassroom: orgRoom,
+            originalDate: moved ? orgDate : nil,
             isCancelled: l.isCancelled,
             isSubstitution: l.isSubstitution,
             note: note

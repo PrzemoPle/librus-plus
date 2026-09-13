@@ -91,6 +91,25 @@ final class DecodingTests: XCTestCase {
         XCTAssertEqual(lesson.orgClassroom?.name, "12")
     }
 
+    /// A lesson moved to a different day is still a "substitution" slot as far
+    /// as Librus is concerned, but `OrgDate` points back at the original day
+    /// rather than matching the slot's own date — that's what distinguishes a
+    /// move from a same-day teacher/subject swap.
+    func testTimetableOrgDateForMovedLesson() throws {
+        let json = """
+        { "Timetable": { "2026-09-05": [ [ {
+          "LessonNo": 4, "HourFrom": "11:50", "HourTo": "12:35",
+          "Subject": { "Id": 3, "Name": "Fizyka" },
+          "OrgDate": "2026-09-01",
+          "IsSubstitutionClass": true, "IsCanceled": false
+        } ] ] } }
+        """
+        let resp = try decoder.decode(RawTimetableResponse.self, from: Data(json.utf8))
+        let lesson = try XCTUnwrap(resp.days["2026-09-05"]?.first?.first)
+        XCTAssertTrue(lesson.isSubstitution)
+        XCTAssertEqual(lesson.orgDate, "2026-09-01")
+    }
+
     func testDecodeAnnouncementsStringId() throws {
         let json = """
         { "SchoolNotices": [

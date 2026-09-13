@@ -227,6 +227,8 @@ struct LessonRow: View {
 
                 if entry.isCancelled {
                     badge("Lekcja odwołana", .negative, "xmark.circle.fill")
+                } else if entry.isMoved {
+                    badge(entry.note ?? "Przeniesiona", .info, "arrow.turn.up.right")
                 } else if entry.isSubstitution {
                     badge(entry.note ?? "Zastępstwo", .warning, "arrow.triangle.2.circlepath")
                 }
@@ -311,9 +313,16 @@ struct LessonDetailView: View {
                             Label("Lekcja odwołana", systemImage: "xmark.circle.fill")
                                 .foregroundStyle(Color.negative)
                         }
-                        if entry.isSubstitution {
+                        if entry.isMoved {
+                            Label("Przeniesiona", systemImage: "arrow.turn.up.right")
+                                .foregroundStyle(Color.info)
+                        } else if entry.isSubstitution {
                             Label("Zastępstwo", systemImage: "arrow.triangle.2.circlepath")
                                 .foregroundStyle(Color.warning)
+                        }
+                        if let orgDate = entry.originalDate {
+                            KeyValueRow(key: "Pierwotny termin",
+                                        value: "\(orgDate.weekdayName.capitalized), \(orgDate.dayMonthYear)")
                         }
                         if entry.roomChanged {
                             Label("Zmiana sali", systemImage: "arrow.left.arrow.right")
