@@ -69,9 +69,10 @@ jobs:
           DIST_PROFILE: ${{ secrets.DIST_PROFILE }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           set -euo pipefail
-          for v in DIST_CERT_P12 DIST_CERT_PASSWORD DIST_PROFILE ASC_PRIVATE_KEY ASC_KEY_ID; do
+          for v in DIST_CERT_P12 DIST_CERT_PASSWORD DIST_PROFILE ASC_PRIVATE_KEY ASC_KEY_ID ASC_ISSUER_ID; do
             if [ -z "${!v:-}" ]; then echo "::error::brak sekretu $v — uruchom scripts/setup_signing.py"; exit 1; fi
           done
 

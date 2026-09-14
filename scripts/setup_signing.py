@@ -16,6 +16,8 @@ Nic nie jest wypisywane na ekran poza statusem. Klucz i .p12 zostają lokalnie w
 użyło tego samego certyfikatu zamiast zakładać kolejny — Apple pozwala na kilka).
 
 Wymagania: macOS z `openssl` i zalogowanym `gh` (GitHub CLI). Python 3.9+.
+Klucz API musi mieć rolę **Admin** — zakładanie certyfikatów i profili tego wymaga
+(HTTP 403 przy pierwszym zapytaniu = za słaba rola).
 
 Użycie:
   python3 scripts/setup_signing.py \\
@@ -37,6 +39,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -112,7 +115,10 @@ class AppStoreConnect:
         self._token_expiry = now + 15 * 60
         return self._token
 
-    def request(self, method: str, path: str, body: dict | None = None) -> dict:
+    def request(self, method: str, path: str, body: dict | None = None,
+                allow_404: bool = False) -> dict:
+        """One API call. Dies with a readable message on any HTTP error, except a
+        404 when `allow_404` is set — then returns an empty dict."""
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(API + path, data=data, method=method)
         req.add_header("Authorization", f"Bearer {self.token()}")
@@ -124,6 +130,8 @@ class AppStoreConnect:
                 raw = resp.read()
                 return json.loads(raw) if raw else {}
         except urllib.error.HTTPError as exc:
+            if exc.code == 404 and allow_404:
+                return {}
             detail = exc.read().decode(errors="replace")
             try:
                 errors = json.loads(detail).get("errors", [])
@@ -162,7 +170,7 @@ def ensure_certificate(asc: AppStoreConnect, state: Path, key: Path) -> tuple[st
     meta = state / "certificate.json"
     if cer.exists() and meta.exists():
         cert_id = json.loads(meta.read_text())["id"]
-        existing = asc.request("GET", f"/v1/certificates/{cert_id}")
+        existing = asc.request("GET", f"/v1/certificates/{cert_id}", allow_404=True)
         if existing.get("data"):
             step(f"certyfikat Apple Distribution już istnieje (id {cert_id}) — używam go")
             return cert_id, cer
@@ -180,6 +188,9 @@ def ensure_certificate(asc: AppStoreConnect, state: Path, key: Path) -> tuple[st
     cert_id = created["data"]["id"]
     cer.write_bytes(base64.b64decode(created["data"]["attributes"]["certificateContent"]))
     meta.write_text(json.dumps({"id": cert_id, "created": time.strftime("%Y-%m-%d")}))
+    # A .p12 from an earlier run would still hold the previous certificate.
+    for stale in ("distribution.p12", "distribution.pem", "p12-password.txt"):
+        (state / stale).unlink(missing_ok=True)
     step(f"certyfikat założony (id {cert_id})")
     return cert_id, cer
 
@@ -193,13 +204,16 @@ def build_p12(state: Path, key: Path, cer: Path) -> tuple[Path, str]:
     pem = state / "distribution.pem"
     run(["openssl", "x509", "-inform", "DER", "-in", str(cer), "-out", str(pem)])
     password = secrets.token_urlsafe(24)
-    # -legacy: Xcode's `security import` still expects the classic PKCS#12 ciphers.
+    # Password goes through the environment so it never shows up in `ps`.
+    env = {**os.environ, "P12_PASSWORD": password}
+    # OpenSSL 3 needs -legacy for the classic PKCS#12 ciphers; macOS's own LibreSSL
+    # has no such flag and already emits them, so fall back without it.
     result = subprocess.run(
         ["openssl", "pkcs12", "-export", "-legacy", "-inkey", str(key), "-in", str(pem),
-         "-out", str(p12), "-passout", f"pass:{password}"], capture_output=True, text=True)
-    if result.returncode != 0:  # older LibreSSL has no -legacy flag
+         "-out", str(p12), "-passout", "env:P12_PASSWORD"], capture_output=True, text=True, env=env)
+    if result.returncode != 0:
         run(["openssl", "pkcs12", "-export", "-inkey", str(key), "-in", str(pem),
-             "-out", str(p12), "-passout", f"pass:{password}"])
+             "-out", str(p12), "-passout", "env:P12_PASSWORD"], env=env)
     password_file.write_text(password)
     os.chmod(p12, 0o600)
     os.chmod(password_file, 0o600)
@@ -223,7 +237,7 @@ def ensure_bundle_id(asc: AppStoreConnect, bundle_id: str) -> str:
 def ensure_profile(asc: AppStoreConnect, state: Path, name: str, bundle_id_res: str, cert_id: str) -> Path:
     """Always (re)creates the App Store profile so it is guaranteed to include the
     certificate we just secured. Old profiles with the same name are removed."""
-    listed = asc.request("GET", f"/v1/profiles?filter[name]={urllib.request.quote(name)}&limit=200")
+    listed = asc.request("GET", f"/v1/profiles?filter[name]={urllib.parse.quote(name)}&limit=200")
     for item in listed.get("data", []):
         if item["attributes"]["name"] == name:
             step(f"usuwam poprzedni profil „{name}”")
