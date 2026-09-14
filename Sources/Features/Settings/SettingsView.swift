@@ -64,6 +64,7 @@ struct SettingsView: View {
                                 }
                             }
                         }
+                        .disabled(app.isSwitchingAccount)
                     }
                 } header: {
                     Text("Dzieci")

@@ -77,7 +77,11 @@ struct Credentials: Codable, Equatable {
         if let legacy = Keychain.json(LegacyCredentialsV2.self, for: legacyV2Key) {
             let migrated = legacy.migrated
             migrated.save()
-            Keychain.delete(legacyV2Key)
+            // `Keychain.set` doesn't report failures — keep the old blob until the
+            // new one provably reads back, so a failed write can't log the user out.
+            if Keychain.json(Credentials.self, for: keychainKey) == migrated {
+                Keychain.delete(legacyV2Key)
+            }
             return migrated
         }
         return nil

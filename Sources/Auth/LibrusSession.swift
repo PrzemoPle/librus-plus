@@ -182,7 +182,7 @@ actor LibrusSession {
     }
 
     private func performRefresh(for login: String) async throws -> String {
-        try await ensureValidPortalToken()
+        let portalTokens = try await ensureValidPortalToken()
         guard let creds = credentials, creds.account(login: login) != nil else {
             throw APIError.tokenExpired
         }
@@ -190,7 +190,7 @@ actor LibrusSession {
         let token: String
         do {
             token = try await portalAuth.freshSynergiaToken(
-                login: login, portalToken: creds.portal.accessToken)
+                login: login, portalToken: portalTokens.accessToken)
         } catch {
             // Portal token might have just died — one full re-login attempt.
             let portal = try await portalAuth.logIn(login: creds.login, password: creds.password)
@@ -208,24 +208,31 @@ actor LibrusSession {
         return token
     }
 
-    /// Refreshes (or re-obtains) the portal token when it is stale. Shared by all
-    /// children so two refreshes don't race over a single-use refresh token.
-    private func ensureValidPortalToken() async throws {
+    /// Returns usable portal tokens, refreshing (or re-obtaining) them when stale.
+    /// Shared by all children so two refreshes don't race over a single-use refresh
+    /// token. The new tokens are persisted *inside* the shared task, so every
+    /// caller — the one that started it and the ones merely waiting on it — gets
+    /// them only after they are stored.
+    private func ensureValidPortalToken() async throws -> PortalTokens {
         guard let creds = credentials else { throw APIError.tokenExpired }
-        if creds.isPortalTokenValid { return }
+        if creds.isPortalTokenValid { return creds.portal }
 
-        if let running = portalRefreshTask {
-            _ = try await running.value
-            return
-        }
+        if let running = portalRefreshTask { return try await running.value }
         let auth = portalAuth
         let task = Task<PortalTokens, Error> {
-            do { return try await auth.refresh(refreshToken: creds.portal.refreshToken) }
-            catch { return try await auth.logIn(login: creds.login, password: creds.password) }
+            let portal: PortalTokens
+            do { portal = try await auth.refresh(refreshToken: creds.portal.refreshToken) }
+            catch { portal = try await auth.logIn(login: creds.login, password: creds.password) }
+            // `Task {}` inherits this actor's isolation, so the store is a plain call.
+            try self.storePortalTokens(portal)
+            return portal
         }
         portalRefreshTask = task
         defer { portalRefreshTask = nil }
-        let portal = try await task.value
+        return try await task.value
+    }
+
+    private func storePortalTokens(_ portal: PortalTokens) throws {
         try updateCredentials { $0.portal = portal }
     }
 

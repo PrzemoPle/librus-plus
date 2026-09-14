@@ -27,6 +27,8 @@ final class AppState {
 
     var loginError: String?
     var isLoggingIn = false
+    /// True while a child switch is in flight — the switcher disables itself.
+    private(set) var isSwitchingAccount = false
 
     @ObservationIgnored private var repositories: [String: DataRepository] = [:]
 
@@ -71,7 +73,9 @@ final class AppState {
     /// Shows another child's data. Tabs are rebuilt by `RootView` (keyed on the
     /// account), so navigation starts fresh; the selected tab is kept.
     func switchAccount(to login: String) async {
-        guard login != repository?.account.login else { return }
+        guard login != repository?.account.login, !isSwitchingAccount else { return }
+        isSwitchingAccount = true
+        defer { isSwitchingAccount = false }
         do {
             try await session.select(accountLogin: login)
         } catch {
@@ -105,6 +109,7 @@ final class AppState {
         repositories[selected.login] = repo
         for (login, other) in repositories { other.isActive = login == selected.login }
         repo.calendarLabel = accounts.count > 1 ? selected.shortName : nil
+        repo.adoptsLegacyCalendarEntries = selected.login == accounts.first?.login
         repository = repo
     }
 

@@ -17,6 +17,9 @@ final class DataRepository {
     @ObservationIgnored var isActive = false
     /// Prefix for calendar entries when more than one child is linked.
     @ObservationIgnored var calendarLabel: String?
+    /// True for the child that older builds showed (first in portal order): only
+    /// its sync may take over calendar entries planted before entries were tagged.
+    @ObservationIgnored var adoptsLegacyCalendarEntries = false
 
     // Published state -------------------------------------------------------
     var studentName: String = ""
@@ -224,7 +227,8 @@ final class DataRepository {
     func syncCalendarIfEnabled() async -> CalendarSync.SyncResult? {
         guard CalendarSync.isEnabled else { return nil }
         return await CalendarSync.sync(events: events, bellSchedule: bellSchedule,
-                                       account: account.login, label: calendarLabel)
+                                       account: account.login, label: calendarLabel,
+                                       adoptsLegacy: adoptsLegacyCalendarEntries)
     }
 
     /// Refresh only when the last successful sync is older than `maxAge`. Used when

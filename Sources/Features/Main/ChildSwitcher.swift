@@ -32,6 +32,7 @@ struct ChildSwitcherToolbar: ViewModifier {
                                 .font(.caption2.weight(.bold))
                         }
                     }
+                    .disabled(app.isSwitchingAccount)
                     .accessibilityLabel("Dziecko: \(repo.account.displayName)")
                     .accessibilityHint("Otwiera listę dzieci do przełączenia")
                 }

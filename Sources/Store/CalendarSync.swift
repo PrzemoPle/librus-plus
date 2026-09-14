@@ -47,9 +47,12 @@ enum CalendarSync {
     @discardableResult
     /// `account` scopes the mirror to one child; `label` (the child's name) is
     /// prefixed to every title when more than one child is linked.
+    /// `adoptsLegacy`: builds before the child switcher planted entries without a
+    /// child tag. They all belong to the child those builds showed, so exactly one
+    /// child's sync may adopt (and prune) them — every other child ignores them.
     static func sync(
         events items: [CalendarEvent], bellSchedule: [BellPeriod],
-        account: String, label: String? = nil
+        account: String, label: String? = nil, adoptsLegacy: Bool = false
     ) async -> SyncResult {
         guard isAuthorized else { return .denied }
         let tag = Cache.safeName(account)
@@ -65,12 +68,12 @@ enum CalendarSync {
             let existing = store.events(
                 matching: store.predicateForEvents(withStart: from, end: to, calendars: [calendar])
             )
-            // This child's entries only — plus untagged ones planted by a build
-            // before the child switcher, which the first sync adopts.
+            // This child's entries only (plus the untagged legacy ones, if this is
+            // the child allowed to adopt them).
             var mine: [Int: EKEvent] = [:]
             for event in existing {
                 guard let key = eventKey(from: event.url) else { continue }
-                if key.account == nil || key.account == tag { mine[key.id] = event }
+                if key.account == tag || (adoptsLegacy && key.account == nil) { mine[key.id] = event }
             }
 
             let wanted = items.filter { item in
