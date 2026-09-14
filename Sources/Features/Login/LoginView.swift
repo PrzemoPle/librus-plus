@@ -21,7 +21,7 @@ struct LoginView: View {
                     .frame(width: 84, height: 84)
                     .background(Color.accentColor.gradient, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                     .cardShadow(true)
-                Text("Librus Plus")
+                Text("Dzienniczek")
                     .font(.largeTitle.weight(.bold))
                 Text("Zaloguj się Kontem LIBRUS")
                     .font(.subheadline)

@@ -11,7 +11,7 @@ import UIKit
 /// and entries that disappeared from Librus get cleaned up.
 enum CalendarSync {
     static let enabledKey = "syncEventsToCalendar"
-    static let calendarTitle = "Librus Plus"
+    static let calendarTitle = "Dzienniczek"
     private static let urlScheme = "librus-event://"
 
     /// How far around today we keep the mirror in sync.

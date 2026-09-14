@@ -112,7 +112,7 @@ struct Diagnostics {
     }
 
     static func report(_ results: [DiagnosticResult]) -> String {
-        var lines = ["Librus Plus — diagnostyka \(Date().formattedPL("yyyy-MM-dd HH:mm"))"]
+        var lines = ["Dzienniczek — diagnostyka \(Date().formattedPL("yyyy-MM-dd HH:mm"))"]
         for r in results {
             lines.append("\(r.ok ? "OK  " : "BŁĄD") \(r.name) — \(r.detail)")
         }

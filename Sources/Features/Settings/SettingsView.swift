@@ -107,10 +107,10 @@ struct SettingsView: View {
                             switch await NotificationManager.sendTestNotification() {
                             case .scheduled:
                                 text = "Wysłane. Powiadomienie powinno pojawić się za chwilę. "
-                                    + "Jeśli nie przychodzi — sprawdź Ustawienia iOS → Powiadomienia → Librus Plus."
+                                    + "Jeśli nie przychodzi — sprawdź Ustawienia iOS → Powiadomienia → Dzienniczek."
                             case .denied:
                                 text = "Powiadomienia są wyłączone dla aplikacji. "
-                                    + "Włącz je w Ustawieniach iOS → Powiadomienia → Librus Plus."
+                                    + "Włącz je w Ustawieniach iOS → Powiadomienia → Dzienniczek."
                             case .failed(let detail):
                                 text = "System odrzucił powiadomienie: \(detail)"
                             }
@@ -166,10 +166,10 @@ struct SettingsView: View {
 
             Section("O aplikacji") {
                 LabeledContent("Wersja", value: version)
-                Link(destination: URL(string: "https://github.com/WebMasterPL/librus-PP/issues")!) {
+                Link(destination: URL(string: "https://github.com/PrzemoPle/librus-plus/issues")!) {
                     Label("Zgłoś problem", systemImage: "ladybug")
                 }
-                Link(destination: URL(string: "https://github.com/WebMasterPL/librus-PP")!) {
+                Link(destination: URL(string: "https://github.com/PrzemoPle/librus-plus")!) {
                     Label("Kod źródłowy (GitHub)", systemImage: "chevron.left.forwardslash.chevron.right")
                 }
                 Text("""
@@ -231,7 +231,7 @@ struct SettingsView: View {
                 syncCalendar = false
                 notice = Notice(
                     title: "Brak dostępu do Kalendarza",
-                    message: "Włącz go w Ustawieniach iOS → Prywatność i bezpieczeństwo → Kalendarze → Librus Plus."
+                    message: "Włącz go w Ustawieniach iOS → Prywatność i bezpieczeństwo → Kalendarze → Dzienniczek."
                 )
                 return
             }
@@ -257,7 +257,7 @@ struct SettingsView: View {
             Haptics.warning()
             notice = Notice(
                 title: "Brak dostępu do Kalendarza",
-                message: "Włącz go w Ustawieniach iOS → Prywatność i bezpieczeństwo → Kalendarze → Librus Plus."
+                message: "Włącz go w Ustawieniach iOS → Prywatność i bezpieczeństwo → Kalendarze → Dzienniczek."
             )
         case .failed(let detail):
             Haptics.warning()
