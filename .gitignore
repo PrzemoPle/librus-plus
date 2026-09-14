@@ -24,3 +24,5 @@ adresaci*
 *.har
 *-request.txt*
 *.curl
+__pycache__/
+*.pyc

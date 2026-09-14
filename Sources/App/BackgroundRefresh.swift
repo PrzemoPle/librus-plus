@@ -5,7 +5,7 @@ import BackgroundTasks
 /// iOS decides if/when this actually runs and throttles sideloaded apps heavily,
 /// so it's best-effort — the in-app badges are the reliable path.
 enum BackgroundRefresh {
-    static let taskIdentifier = "eu.mojlibrus.app.refresh"
+    static let taskIdentifier = "pl.plewinscy.dzienniczek.refresh"
 
     enum Keys {
         static let grades = "notifyNewGrades"

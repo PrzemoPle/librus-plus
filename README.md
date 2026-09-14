@@ -7,7 +7,45 @@
 > się menu w lewym górnym rogu każdego ekranu (albo w Ustawieniach → Dzieci).
 > Każde dziecko ma osobną pamięć podręczną, osobne plakietki „nowe”, osobne
 > powiadomienia (z imieniem w podtytule) i osobne wpisy w Kalendarzu.
-> Reszta — logowanie, ekrany, dystrybucja — jak w oryginale poniżej.
+> Reszta — logowanie i ekrany — jak w oryginale poniżej. **Dystrybucja jest inna:
+> TestFlight zamiast SideStore** (patrz niżej); sekcja „Jak zainstalować” z oryginału
+> tu nie obowiązuje.
+
+## TestFlight — jak to uruchomić (fork)
+
+Nazwa wyświetlana: **Dzienniczek**, bundle id `pl.plewinscy.dzienniczek`, Team
+`94MSU24AZ7`. Build robi GitHub Actions (`.github/workflows/testflight.yml`) na
+każdy tag `v*` i wysyła go do App Store Connect. Konfiguracja podpisywania jest
+jednorazowa i robisz ją sam na Macu — klucz API i certyfikat nie przechodzą przez
+nikogo poza Tobą i GitHubem.
+
+1. **Klucz API.** [App Store Connect](https://appstoreconnect.apple.com) → *Użytkownicy
+   i dostęp* → *Integracje* → *Klucze zespołu* → „+”. Nazwa `GitHub CI`, rola
+   **Admin** (albo *App Manager* z zaznaczonym dostępem do certyfikatów). Pobierz
+   plik `AuthKey_XXXXXXXXXX.p8` (Apple daje go tylko raz) i zapisz *Key ID* oraz
+   *Issuer ID* z tej samej strony.
+2. **Skrypt.** W Terminalu, w katalogu repo:
+   ```bash
+   python3 scripts/setup_signing.py --key ~/Downloads/AuthKey_XXXXXXXXXX.p8 --key-id XXXXXXXXXX --issuer-id <Issuer ID>
+   ```
+   Zakłada certyfikat *Apple Distribution*, App ID, profil App Store i wgrywa sześć
+   sekretów do repo (`gh secret set`). Klucz i `.p12` zostają w
+   `~/Library/Application Support/dzienniczek-signing/`.
+3. **Rekord aplikacji** (raz, ręcznie — API tego nie umie): App Store Connect →
+   *Moje aplikacje* → „+” → *Nowa aplikacja*: iOS, nazwa unikalna w App Store
+   (np. „Dzienniczek Plewińskich”), język polski, Bundle ID `pl.plewinscy.dzienniczek`,
+   SKU `dzienniczek`. Nic więcej nie wypełniaj.
+4. **Build.** `git tag v1.0.0 && git push origin v1.0.0`. Po 10–15 min build jest
+   w App Store Connect → *TestFlight*; przetwarzanie trwa kolejne kilka minut.
+5. **Testerzy.** *TestFlight* → *Testy wewnętrzne* → „+” → grupa „Rodzina” → dodaj
+   siebie. Żonę najpierw zaproś w *Użytkownicy i dostęp* → „+” (jej Apple ID, rola
+   *Developer* wystarczy), a gdy przyjmie zaproszenie — dodaj do grupy. Na
+   telefonach: aplikacja **TestFlight** z App Store → zaproszenie z maila →
+   *Zainstaluj*. Testy wewnętrzne nie przechodzą przez Beta App Review.
+6. **Odświeżanie.** Build TestFlight wygasa po 90 dniach — wystarczy nowy tag
+   (`v1.0.1`), TestFlight sam pokaże aktualizację.
+
+Workflow `build.yml` to tylko kontrola kompilacji i testów na każdy push (bez podpisu).
 
 Nieoficjalny klient iOS (SwiftUI) dla dziennika **Librus Synergia**. Funkcjonalnie
 wzorowany na [szkolny.eu](https://szkolny.eu), ale obsługuje **wyłącznie Librusa**.

@@ -1,7 +1,7 @@
 name: MojLibrus
 
 options:
-  bundleIdPrefix: eu.mojlibrus
+  bundleIdPrefix: pl.plewinscy
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
@@ -40,7 +40,7 @@ targets:
           - "*.entitlements"
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: eu.mojlibrus.app
+        PRODUCT_BUNDLE_IDENTIFIER: pl.plewinscy.dzienniczek
         PRODUCT_NAME: MojLibrus
         INFOPLIST_FILE: Resources/Info.plist
         TARGETED_DEVICE_FAMILY: "1"
@@ -59,7 +59,7 @@ targets:
       - target: MojLibrus
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: eu.mojlibrus.app.tests
+        PRODUCT_BUNDLE_IDENTIFIER: pl.plewinscy.dzienniczek.tests
         GENERATE_INFOPLIST_FILE: "YES"
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/MojLibrus.app/MojLibrus"
         BUNDLE_LOADER: "$(TEST_HOST)"

@@ -1,9 +1,10 @@
 name: build
 
+# Compile + unit-test check on every push (unsigned build, artifact only).
+# The signed TestFlight build lives in testflight.yml.
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   workflow_dispatch:
 
 concurrency:
@@ -11,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -102,66 +103,9 @@ jobs:
           mv "$APP_NAME.ipa" dist/
           ls -lh dist
 
-      - name: Refresh SideStore source (apps.json)
-        run: |
-          SIZE=$(stat -f%z "dist/$APP_NAME.ipa")
-          DATE=$(date -u +%Y-%m-%d)
-          DL="https://github.com/${{ github.repository }}/releases/latest/download/$APP_NAME.ipa"
-          python3 - "${{ steps.ver.outputs.version }}" "${{ steps.ver.outputs.build }}" "$SIZE" "$DATE" "$DL" "${{ github.repository }}" <<'PY'
-          import json, sys, pathlib
-          version, build, size, date, url, repo = sys.argv[1:7]
-          p = pathlib.Path("apps.json")
-          data = json.loads(p.read_text(encoding="utf-8"))
-          data["sourceURL"] = f"https://github.com/{repo}/releases/latest/download/apps.json"
-          app = data["apps"][0]
-          app["iconURL"] = f"https://raw.githubusercontent.com/{repo}/main/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png"
-          entry = {"version": version, "buildVersion": build, "date": date,
-                   "localizedDescription": f"Wersja {version} (build {build}).",
-                   "downloadURL": url, "size": int(size), "minOSVersion": "17.0"}
-          app["version"] = version
-          app["versionDate"] = date
-          app["versionDescription"] = entry["localizedDescription"]
-          app["downloadURL"] = url
-          app["size"] = int(size)
-          kept = [v for v in app.get("versions", []) if v.get("version") != version]
-          app["versions"] = [entry] + kept
-          p.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-          pathlib.Path("dist/apps.json").write_text(
-              json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-          print("apps.json ->", version, "build", build, size, "bytes")
-          PY
-
-      - name: Upload build artifacts
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: MojLibrus-ipa
-          path: |
-            dist/MojLibrus.ipa
-            dist/apps.json
+          path: dist/MojLibrus.ipa
           if-no-files-found: error
-
-      - name: Publish Release (tags only)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/MojLibrus.ipa
-            dist/apps.json
-          generate_release_notes: true
-
-      - name: Commit updated apps.json to main (tags only)
-        if: steps.ver.outputs.is_tag == '1'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git checkout main
-          git pull --ff-only origin main || true
-          cp dist/apps.json apps.json
-          if git diff --quiet -- apps.json; then
-            echo "apps.json unchanged"
-          else
-            git add apps.json
-            git commit -m "ci: apps.json -> ${{ steps.ver.outputs.version }} [skip ci]"
-            git push origin main
-          fi

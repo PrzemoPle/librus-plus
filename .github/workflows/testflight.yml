@@ -1,0 +1,162 @@
+name: testflight
+
+# Signed build → TestFlight. Runs on every `v*` tag (and by hand).
+#
+# Needs six repository secrets, all written by `scripts/setup_signing.py`:
+#   ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY   – App Store Connect API key
+#   DIST_CERT_P12, DIST_CERT_PASSWORD             – Apple Distribution certificate
+#   DIST_PROFILE                                  – App Store provisioning profile
+#
+# Signing is manual (certificate + profile from secrets) because `xcodebuild
+# archive` insists on a signing identity with a private key on the machine —
+# Apple's cloud signing only covers the export step. The API key is used for
+# the upload itself.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: testflight-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  testflight:
+    runs-on: macos-26
+    timeout-minutes: 40
+    env:
+      SCHEME: MojLibrus
+      APP_NAME: MojLibrus
+      BUNDLE_ID: pl.plewinscy.dzienniczek
+      TEAM_ID: 94MSU24AZ7
+      PROFILE_NAME: Dzienniczek App Store
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install tools
+        run: brew install xcodegen xcbeautify
+
+      - name: Compute version
+        id: ver
+        run: |
+          BUILD=$(( GITHUB_RUN_NUMBER + 1000 ))
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION="0.0.${BUILD}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "Building $VERSION (build $BUILD)"
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Install signing certificate and profile
+        env:
+          DIST_CERT_P12: ${{ secrets.DIST_CERT_P12 }}
+          DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
+          DIST_PROFILE: ${{ secrets.DIST_PROFILE }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          set -euo pipefail
+          for v in DIST_CERT_P12 DIST_CERT_PASSWORD DIST_PROFILE ASC_PRIVATE_KEY ASC_KEY_ID; do
+            if [ -z "${!v:-}" ]; then echo "::error::brak sekretu $v — uruchom scripts/setup_signing.py"; exit 1; fi
+          done
+
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+
+          echo "$DIST_CERT_P12" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          security import "$RUNNER_TEMP/dist.p12" -P "$DIST_CERT_PASSWORD" -A \
+            -t cert -f pkcs12 -k "$KEYCHAIN" \
+            -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productbuild
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          rm -f "$RUNNER_TEMP/dist.p12"
+          echo "Identities:"; security find-identity -v -p codesigning "$KEYCHAIN"
+
+          echo "$DIST_PROFILE" | base64 --decode > "$RUNNER_TEMP/profile.mobileprovision"
+          UUID=$(security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" | plutil -extract UUID raw -o - -)
+          for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$dir"
+            cp "$RUNNER_TEMP/profile.mobileprovision" "$dir/$UUID.mobileprovision"
+          done
+          echo "Profile $UUID installed"
+
+          mkdir -p "$HOME/private_keys"
+          printf '%s\n' "$ASC_PRIVATE_KEY" > "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          chmod 600 "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+
+      - name: Archive (signed, Apple Distribution)
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project "$APP_NAME.xcodeproj" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "build/$APP_NAME.xcarchive" \
+            -derivedDataPath build \
+            MARKETING_VERSION=${{ steps.ver.outputs.version }} \
+            CURRENT_PROJECT_VERSION=${{ steps.ver.outputs.build }} \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            | xcbeautify --renderer github-actions
+
+      - name: Upload to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -o pipefail
+          cat > ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict><key>$BUNDLE_ID</key><string>$PROFILE_NAME</string></dict>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "build/$APP_NAME.xcarchive" \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath build/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            | xcbeautify --renderer github-actions
+          echo "Wysłano build ${{ steps.ver.outputs.version }} (${{ steps.ver.outputs.build }}) do App Store Connect — pojawi się w TestFlight po przetworzeniu (zwykle 5–15 min)."
+
+      - name: Clean up signing material
+        if: always()
+        run: |
+          rm -rf "$HOME/private_keys" "$RUNNER_TEMP/profile.mobileprovision" ExportOptions.plist
+          security delete-keychain "$RUNNER_TEMP/build.keychain-db" 2>/dev/null || true
