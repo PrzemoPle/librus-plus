@@ -16,6 +16,11 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Wersja (np. 1.0.0); puste = 0.0.<build>"
+        required: false
+        default: ""
 
 concurrency:
   group: testflight-${{ github.ref }}
@@ -52,6 +57,8 @@ jobs:
           BUILD=$(( GITHUB_RUN_NUMBER + 1000 ))
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/v}"
+          elif [[ -n "${{ github.event.inputs.version }}" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
           else
             VERSION="0.0.${BUILD}"
           fi
@@ -122,19 +129,20 @@ jobs:
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
             | xcbeautify --renderer github-actions
 
-      - name: Upload to TestFlight
-        env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      # Two exports on purpose: the first writes a signed .ipa we always keep as an
+      # artifact (fallback: drop it into Transporter on a Mac), the second hands
+      # the archive to App Store Connect. Both use the same options apart from
+      # `destination`.
+      - name: Write export options
         run: |
-          set -o pipefail
-          cat > ExportOptions.plist <<EOF
+          for dest in export upload; do
+            cat > "ExportOptions-$dest.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>upload</string>
+            <key>destination</key><string>$dest</string>
             <key>signingStyle</key><string>manual</string>
             <key>teamID</key><string>$TEAM_ID</string>
             <key>signingCertificate</key><string>Apple Distribution</string>
@@ -145,10 +153,35 @@ jobs:
           </dict>
           </plist>
           EOF
+          done
+
+      - name: Export signed .ipa
+        run: |
+          set -o pipefail
           xcodebuild -exportArchive \
             -archivePath "build/$APP_NAME.xcarchive" \
-            -exportOptionsPlist ExportOptions.plist \
+            -exportOptionsPlist ExportOptions-export.plist \
             -exportPath build/export \
+            | xcbeautify --renderer github-actions
+          ls -lh build/export
+
+      - name: Keep the .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dzienniczek-${{ steps.ver.outputs.version }}-${{ steps.ver.outputs.build }}-ipa
+          path: build/export/*.ipa
+          if-no-files-found: error
+
+      - name: Upload to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -o pipefail
+          xcodebuild -exportArchive \
+            -archivePath "build/$APP_NAME.xcarchive" \
+            -exportOptionsPlist ExportOptions-upload.plist \
+            -exportPath build/upload \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
             -authenticationKeyID "$ASC_KEY_ID" \
@@ -156,8 +189,23 @@ jobs:
             | xcbeautify --renderer github-actions
           echo "Wysłano build ${{ steps.ver.outputs.version }} (${{ steps.ver.outputs.build }}) do App Store Connect — pojawi się w TestFlight po przetworzeniu (zwykle 5–15 min)."
 
+      - name: Collect Xcode distribution logs (on failure)
+        if: failure()
+        run: |
+          mkdir -p dist-logs
+          find "${TMPDIR:-/tmp}" /var/folders -maxdepth 4 -name "*.xcdistributionlogs" -exec cp -R {} dist-logs/ \; 2>/dev/null || true
+          ls -R dist-logs | head -50
+
+      - name: Upload distribution logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcdistributionlogs
+          path: dist-logs
+          if-no-files-found: ignore
+
       - name: Clean up signing material
         if: always()
         run: |
-          rm -rf "$HOME/private_keys" "$RUNNER_TEMP/profile.mobileprovision" ExportOptions.plist
+          rm -rf "$HOME/private_keys" "$RUNNER_TEMP/profile.mobileprovision" ExportOptions-*.plist
           security delete-keychain "$RUNNER_TEMP/build.keychain-db" 2>/dev/null || true
