@@ -80,17 +80,24 @@ enum BackgroundRefresh {
         // foreground caller passes its live session so we don't spin up a second one.
         let session = session ?? LibrusSession()
         guard await session.isLoggedIn else { return }
-        await runGradeCheck(session: session)
-        await runTimetableCheck(session: session)
-        await runMessageCheck(session: session)
+        // Every child gets its own pass; with several children the notification
+        // says whose grade / lesson / message it is.
+        let accounts = await session.accounts
+        for account in accounts {
+            let label = accounts.count > 1 ? account.shortName : nil
+            await runGradeCheck(session: session, account: account, label: label)
+            await runTimetableCheck(session: session, account: account, label: label)
+            await runMessageCheck(session: session, account: account, label: label)
+        }
     }
 
     // MARK: - Grades
 
     /// Fetch grades, notify about any not yet seen, then mark them seen.
-    static func runGradeCheck(session: LibrusSession) async {
-        guard UserDefaults.standard.bool(forKey: Keys.grades), SeenGrades.hasBaseline else { return }
-        let api = LibrusAPI(session: session)
+    static func runGradeCheck(session: LibrusSession, account: AccountSummary, label: String?) async {
+        let seen = SeenStores(account: account.login)
+        guard UserDefaults.standard.bool(forKey: Keys.grades), seen.grades.hasBaseline else { return }
+        let api = LibrusAPI(session: session, account: account.login)
 
         guard let rawGrades = await api.grades() else { return }
 
@@ -100,7 +107,7 @@ enum BackgroundRefresh {
         }
 
         let allIDs = Set(rawGrades.map(\.id))
-        let newIDs = SeenGrades.newIDs(in: allIDs)
+        let newIDs = seen.grades.newOnes(in: allIDs)
         guard !newIDs.isEmpty else { return }
 
         let newGrades: [GradeItem] = rawGrades
@@ -115,17 +122,18 @@ enum BackgroundRefresh {
                 )
             }
 
-        await NotificationManager.notifyNewGrades(newGrades)
-        SeenGrades.merge(newIDs)
+        await NotificationManager.notifyNewGrades(newGrades, student: label)
+        seen.grades.merge(newIDs)
     }
 
     // MARK: - Timetable changes
 
     /// Scan this + next week for cancellations / substitutions, notify new ones.
-    static func runTimetableCheck(session: LibrusSession) async {
+    static func runTimetableCheck(session: LibrusSession, account: AccountSummary, label: String?) async {
+        let seen = SeenStores(account: account.login)
         guard UserDefaults.standard.bool(forKey: Keys.timetable),
-              Seen.timetableChanges.hasBaseline else { return }
-        let api = LibrusAPI(session: session)
+              seen.timetableChanges.hasBaseline else { return }
+        let api = LibrusAPI(session: session, account: account.login)
 
         let today = LibrusDate.today
         var signatures: Set<String> = []
@@ -151,26 +159,28 @@ enum BackgroundRefresh {
             }
         }
 
-        let new = Seen.timetableChanges.newOnes(in: signatures)
+        let new = seen.timetableChanges.newOnes(in: signatures)
         guard !new.isEmpty else { return }
-        await NotificationManager.notifyTimetableChanges(new.compactMap { labelBySignature[$0] }.sorted())
-        Seen.timetableChanges.merge(signatures)
+        await NotificationManager.notifyTimetableChanges(
+            new.compactMap { labelBySignature[$0] }.sorted(), student: label)
+        seen.timetableChanges.merge(signatures)
     }
 
     // MARK: - Messages
 
-    static func runMessageCheck(session: LibrusSession) async {
+    static func runMessageCheck(session: LibrusSession, account: AccountSummary, label: String?) async {
         guard UserDefaults.standard.bool(forKey: Keys.messages) else { return }
-        let client = MessagesClient(session: session)
+        let seen = SeenStores(account: account.login)
+        let client = MessagesClient(session: session, account: account.login)
         guard let list = try? await client.inbox() else { return }
 
         let unread = list.filter(\.isUnread)
-        let newIDs = Seen.messageIDs.newOnes(in: Set(unread.map(\.id)))
+        let newIDs = seen.messageIDs.newOnes(in: Set(unread.map(\.id)))
         guard !newIDs.isEmpty else {
-            Seen.messageIDs.merge(Set(list.map(\.id)))
+            seen.messageIDs.merge(Set(list.map(\.id)))
             return
         }
-        await NotificationManager.notifyNewMessages(unread.filter { newIDs.contains($0.id) })
-        Seen.messageIDs.merge(Set(list.map(\.id)))
+        await NotificationManager.notifyNewMessages(unread.filter { newIDs.contains($0.id) }, student: label)
+        seen.messageIDs.merge(Set(list.map(\.id)))
     }
 }

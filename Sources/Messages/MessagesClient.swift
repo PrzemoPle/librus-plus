@@ -11,6 +11,8 @@ import Foundation
 ///   3. GET  `synergia.librus.pl/wiadomosci` (+ `/1/5/<id>/f0`) and parse the table.
 actor MessagesClient {
     private let session: LibrusSession
+    /// Synergia login of the child whose inbox this is; nil = the selected one.
+    private let account: String?
     private let http: URLSession
     private var sessionEstablishedAt: Date?
 
@@ -18,8 +20,9 @@ actor MessagesClient {
     /// remote Diagnostics report shows where it broke.
     private(set) var lastTrail = ""
 
-    init(session: LibrusSession) {
+    init(session: LibrusSession, account: String? = nil) {
         self.session = session
+        self.account = account
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieAcceptPolicy = .always
         config.httpShouldSetCookies = true
@@ -427,7 +430,7 @@ actor MessagesClient {
     private func autoLoginToken() async throws -> String {
         let data: Data
         do {
-            data = try await session.authorizedData(path: Librus.Path.autoLoginToken, method: "POST")
+            data = try await session.authorizedData(path: Librus.Path.autoLoginToken, method: "POST", account: account)
         } catch {
             throw APIError.messageBridgeFailed("AutoLoginToken: "
                 + ((error as? LocalizedError)?.errorDescription ?? "\(error)"))

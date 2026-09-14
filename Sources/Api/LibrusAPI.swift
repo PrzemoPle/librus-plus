@@ -8,11 +8,18 @@ import Foundation
 /// empty array means "Librus genuinely has nothing here".
 struct LibrusAPI {
     let session: LibrusSession
+    /// Synergia login of the child this instance queries; nil = the selected one.
+    let account: String?
+
+    init(session: LibrusSession, account: String? = nil) {
+        self.session = session
+        self.account = account
+    }
 
     private static let decoder = JSONDecoder()
 
     private func get<T: Decodable>(_ path: String, as type: T.Type) async throws -> T {
-        let data = try await session.authorizedData(path: path)
+        let data = try await session.authorizedData(path: path, account: account)
         do {
             return try Self.decoder.decode(T.self, from: data)
         } catch {
@@ -104,7 +111,7 @@ struct LibrusAPI {
     /// (which marks it read on some Synergia instances). Never throws.
     func markAnnouncementReadOnServer(id: String) async {
         let marker = "\(Librus.Path.schoolNotices)/MarkAsRead/\(id)"
-        if (try? await session.authorizedData(path: marker, method: "POST")) != nil { return }
-        _ = try? await session.authorizedData(path: "\(Librus.Path.schoolNotices)/\(id)")
+        if (try? await session.authorizedData(path: marker, method: "POST", account: account)) != nil { return }
+        _ = try? await session.authorizedData(path: "\(Librus.Path.schoolNotices)/\(id)", account: account)
     }
 }

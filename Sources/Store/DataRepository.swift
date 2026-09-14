@@ -7,8 +7,16 @@ import Observation
 @Observable
 final class DataRepository {
     let session: LibrusSession
+    /// The child this repository holds data for.
+    let account: AccountSummary
     private let api: LibrusAPI
     private let messages: MessagesClient
+    private let seen: SeenStores
+
+    /// True for the child currently on screen — only that one feeds the widget.
+    @ObservationIgnored var isActive = false
+    /// Prefix for calendar entries when more than one child is linked.
+    @ObservationIgnored var calendarLabel: String?
 
     // Published state -------------------------------------------------------
     var studentName: String = ""
@@ -58,22 +66,22 @@ final class DataRepository {
     private var readAnnouncementIDs: Set<String> = []
     private var readMessageIDs: Set<Int> = []
 
-    /// Bumped after every grade sync so the `SeenGrades`-backed views recompute.
+    /// Bumped after every grade sync so the `seen.grades`-backed views recompute.
     private var gradeSeenTick = 0
 
     /// Grades that appeared since the user last opened the Oceny tab. Empty on first sync.
     var unseenGradeCount: Int {
         _ = gradeSeenTick
-        return SeenGrades.newIDs(in: allGradeIDs).count
+        return seen.grades.newOnes(in: allGradeIDs).count
     }
 
     func isGradeUnseen(_ grade: GradeItem) -> Bool {
         _ = gradeSeenTick
-        return SeenGrades.newIDs(in: allGradeIDs).contains(grade.id)
+        return seen.grades.newOnes(in: allGradeIDs).contains(grade.id)
     }
 
     func markGradesSeen() {
-        SeenGrades.merge(allGradeIDs)
+        seen.grades.merge(allGradeIDs)
         gradeSeenTick &+= 1
     }
 
@@ -81,12 +89,19 @@ final class DataRepository {
         Set(subjectGrades.flatMap { $0.grades.map(\.id) })
     }
 
-    init(session: LibrusSession) {
+    init(session: LibrusSession, account: AccountSummary) {
         self.session = session
-        self.api = LibrusAPI(session: session)
-        self.messages = MessagesClient(session: session)
+        self.account = account
+        self.api = LibrusAPI(session: session, account: account.login)
+        self.messages = MessagesClient(session: session, account: account.login)
+        self.seen = SeenStores(account: account.login)
+        self.studentName = account.studentName ?? ""
         loadCache()
     }
+
+    // Every child has its own cache files; the "seen" sets are scoped the same way.
+    private var snapshotCacheName: String { "snapshot_\(Cache.safeName(account.login))" }
+    private var timetableCacheName: String { "timetable_\(Cache.safeName(account.login))" }
 
     // MARK: - Cache
 
@@ -110,7 +125,7 @@ final class DataRepository {
     }
 
     private func loadCache() {
-        guard let s = Cache.load(Snapshot.self, from: "snapshot") else { return }
+        guard let s = Cache.load(Snapshot.self, from: snapshotCacheName) else { return }
         studentName = s.studentName
         schoolYear = s.schoolYear
         subjectGrades = s.subjectGrades
@@ -127,7 +142,7 @@ final class DataRepository {
         readAnnouncementIDs = Set(s.readAnnouncementIDs)
         readMessageIDs = Set(s.readMessageIDs ?? [])
         classroomNameByID = s.classroomNames ?? [:]
-        if let cachedWeeks = Cache.load([String: [TimetableDay]].self, from: "timetable") {
+        if let cachedWeeks = Cache.load([String: [TimetableDay]].self, from: timetableCacheName) {
             timetableWeeks = cachedWeeks
         }
     }
@@ -144,8 +159,8 @@ final class DataRepository {
             readMessageIDs: Array(readMessageIDs),
             classroomNames: classroomNameByID
         )
-        Cache.save(snap, as: "snapshot")
-        Cache.save(timetableWeeks, as: "timetable")
+        Cache.save(snap, as: snapshotCacheName)
+        Cache.save(timetableWeeks, as: timetableCacheName)
     }
 
     func clearLocal() {
@@ -154,9 +169,7 @@ final class DataRepository {
         attendanceSummary = .init(); attendanceItems = []
         announcements = []; events = []; notes = []; messagesInbox = []; messagesSent = []
         bellSchedule = []; schoolName = nil
-        SeenGrades.reset()
-        Seen.timetableChanges.reset()
-        Seen.messageIDs.reset()
+        seen.resetAll()
         SharedStore.clear()
         WidgetRefresher.reload()
         timetableWeeks = [:]; lastSync = nil
@@ -180,11 +193,11 @@ final class DataRepository {
     }
 
     func markTimetableChangesSeen() {
-        Seen.timetableChanges.merge(upcomingChangeSignatures())
+        seen.timetableChanges.merge(upcomingChangeSignatures())
     }
 
     func markMessagesSeen() {
-        Seen.messageIDs.merge(Set(messagesInbox.map(\.id)))
+        seen.messageIDs.merge(Set(messagesInbox.map(\.id)))
     }
 
     // MARK: - Core refresh
@@ -210,7 +223,8 @@ final class DataRepository {
     @discardableResult
     func syncCalendarIfEnabled() async -> CalendarSync.SyncResult? {
         guard CalendarSync.isEnabled else { return nil }
-        return await CalendarSync.sync(events: events, bellSchedule: bellSchedule)
+        return await CalendarSync.sync(events: events, bellSchedule: bellSchedule,
+                                       account: account.login, label: calendarLabel)
     }
 
     /// Refresh only when the last successful sync is older than `maxAge`. Used when
@@ -327,8 +341,8 @@ final class DataRepository {
                     grades, subjectByID: subjectByID, userByID: userByID,
                     categoryByID: categoryByID, commentByID: commentByID
                 )
-                if !SeenGrades.hasBaseline {
-                    SeenGrades.establishBaseline(allGradeIDs)
+                if !seen.grades.hasBaseline {
+                    seen.grades.establishBaseline(allGradeIDs)
                 }
                 gradeSeenTick &+= 1
             }
@@ -426,12 +440,14 @@ final class DataRepository {
             return TimetableDay(date: date, entries: entries)
         }
         timetableWeeks[key] = days
-        if !Seen.timetableChanges.hasBaseline {
-            Seen.timetableChanges.establishBaseline(upcomingChangeSignatures())
+        if !seen.timetableChanges.hasBaseline {
+            seen.timetableChanges.establishBaseline(upcomingChangeSignatures())
         }
         saveCache()
-        SharedStore.publishTimetable(upcomingDays())
-        WidgetRefresher.reload()
+        if isActive {
+            SharedStore.publishTimetable(upcomingDays())
+            WidgetRefresher.reload()
+        }
     }
 
     // MARK: - Messages
@@ -462,8 +478,8 @@ final class DataRepository {
     private func fetchInbox() async throws {
         let list = try await messages.messages(in: .received)
         messagesInbox = list.sorted { ($0.sentDate ?? .distantPast) > ($1.sentDate ?? .distantPast) }
-        if !Seen.messageIDs.hasBaseline {
-            Seen.messageIDs.establishBaseline(Set(list.map(\.id)))
+        if !seen.messageIDs.hasBaseline {
+            seen.messageIDs.establishBaseline(Set(list.map(\.id)))
         }
         saveCache()
     }

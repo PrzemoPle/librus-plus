@@ -16,10 +16,12 @@ enum NotificationManager {
         return status == .authorized || status == .provisional
     }
 
-    static func notifyNewGrades(_ grades: [GradeItem]) async {
+    /// `student` — the child's name, shown as the subtitle when several are linked.
+    static func notifyNewGrades(_ grades: [GradeItem], student: String? = nil) async {
         guard !grades.isEmpty, await isAuthorized() else { return }
 
         let content = UNMutableNotificationContent()
+        if let student { content.subtitle = student }
         if grades.count == 1, let g = grades.first {
             content.title = "Nowa ocena: \(g.raw)"
             content.body = "\(g.subjectName)\(g.categoryName.isEmpty ? "" : " — \(g.categoryName)")"
@@ -35,9 +37,10 @@ enum NotificationManager {
         try? await UNUserNotificationCenter.current().add(request)
     }
 
-    static func notifyTimetableChanges(_ lines: [String]) async {
+    static func notifyTimetableChanges(_ lines: [String], student: String? = nil) async {
         guard !lines.isEmpty, await isAuthorized() else { return }
         let content = UNMutableNotificationContent()
+        if let student { content.subtitle = student }
         content.title = lines.count == 1 ? "Zmiana w planie lekcji"
                                          : "Zmiany w planie lekcji (\(lines.count))"
         content.body = lines.prefix(4).joined(separator: "\n")
@@ -48,9 +51,10 @@ enum NotificationManager {
         try? await UNUserNotificationCenter.current().add(request)
     }
 
-    static func notifyNewMessages(_ messages: [MessageItem]) async {
+    static func notifyNewMessages(_ messages: [MessageItem], student: String? = nil) async {
         guard !messages.isEmpty, await isAuthorized() else { return }
         let content = UNMutableNotificationContent()
+        if let student { content.subtitle = student }
         if messages.count == 1, let m = messages.first {
             content.title = "Nowa wiadomość"
             content.body = "\(m.correspondent): \(m.subject.isEmpty ? "(bez tematu)" : m.subject)"

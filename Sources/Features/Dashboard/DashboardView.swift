@@ -62,6 +62,7 @@ struct DashboardView: View {
                 if repo.isRefreshing { ProgressView() }
             }
         }
+        .childSwitcher()
         .refreshable { await refresh() }
         .task {
             await repo.refreshCoreIfStale()

@@ -38,7 +38,24 @@ struct SeenItems<Element: Hashable & Codable> {
     func reset() { save(Store(items: [], hasBaseline: false)) }
 }
 
-enum Seen {
-    static let messageIDs = SeenItems<Int>(name: "seen_message_ids")
-    static let timetableChanges = SeenItems<String>(name: "seen_timetable_changes")
+/// The three "seen" sets, scoped to one Synergia account — so opening one child's
+/// grades never marks the other child's as seen, and each child gets their own
+/// "new" badges and notifications.
+struct SeenStores {
+    let grades: SeenItems<Int>
+    let messageIDs: SeenItems<Int>
+    let timetableChanges: SeenItems<String>
+
+    init(account: String) {
+        let suffix = Cache.safeName(account)
+        grades = SeenItems(name: "seen_grades_\(suffix)")
+        messageIDs = SeenItems(name: "seen_message_ids_\(suffix)")
+        timetableChanges = SeenItems(name: "seen_timetable_changes_\(suffix)")
+    }
+
+    func resetAll() {
+        grades.reset()
+        messageIDs.reset()
+        timetableChanges.reset()
+    }
 }

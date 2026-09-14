@@ -11,6 +11,13 @@ struct DiagnosticResult: Identifiable {
 /// Useful for remote debugging: the user can copy the report and send it over.
 struct Diagnostics {
     let session: LibrusSession
+    /// Synergia login of the child to test; nil = the selected one.
+    let account: String?
+
+    init(session: LibrusSession, account: String? = nil) {
+        self.session = session
+        self.account = account
+    }
 
     func run() async -> [DiagnosticResult] {
         let checks: [(String, String)] = [
@@ -45,7 +52,7 @@ struct Diagnostics {
 
     private func checkLogin() async -> DiagnosticResult {
         do {
-            let token = try await session.validAccessToken()
+            let token = try await session.validAccessToken(account: account)
             return DiagnosticResult(name: "Logowanie (Portal → Synergia)", ok: !token.isEmpty,
                                     detail: token.isEmpty ? "pusty token" : "token OK (\(token.prefix(6))…)")
         } catch {
@@ -56,7 +63,7 @@ struct Diagnostics {
 
     private func check(name: String, path: String) async -> DiagnosticResult {
         do {
-            let data = try await session.authorizedData(path: path)
+            let data = try await session.authorizedData(path: path, account: account)
             let bytes = data.count
             if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 let keys = obj.keys.sorted().prefix(3).joined(separator: ", ")
@@ -70,7 +77,7 @@ struct Diagnostics {
     }
 
     private func checkMessages() async -> DiagnosticResult {
-        let client = MessagesClient(session: session)
+        let client = MessagesClient(session: session, account: account)
         do {
             let list = try await client.inbox()
             return DiagnosticResult(name: "Wiadomości (mostek)", ok: true,
@@ -93,7 +100,7 @@ struct Diagnostics {
         for week in weeks {
             let key = LibrusDate.ymdString(week)
             do {
-                let data = try await session.authorizedData(path: Librus.Path.timetable(weekStart: key))
+                let data = try await session.authorizedData(path: Librus.Path.timetable(weekStart: key), account: account)
                 let obj = try JSONSerialization.jsonObject(with: data)
                 let pretty = try JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])
                 parts.append("=== \(key) ===\n\(String(data: pretty, encoding: .utf8) ?? "?")")

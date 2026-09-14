@@ -37,12 +37,38 @@ struct SettingsView: View {
                 if let tutor = repo.schoolYear.tutor {
                     LabeledContent("Wychowawca", value: tutor)
                 }
-                if let login = currentLogin {
-                    LabeledContent("Login", value: login)
+                if let login = app.portalLogin {
+                    LabeledContent("Konto LIBRUS", value: login)
                 }
                 LabeledContent("Bieżący semestr", value: "\(repo.currentSemester)")
                 if let sync = repo.lastSync {
                     LabeledContent("Ostatnia synchronizacja", value: sync.formattedPL("d MMM yyyy, HH:mm"))
+                }
+            }
+
+            if app.accounts.count > 1 {
+                Section {
+                    ForEach(app.accounts) { account in
+                        Button {
+                            Haptics.selection()
+                            Task { await app.switchAccount(to: account.login) }
+                        } label: {
+                            HStack {
+                                Text(account.displayName)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                if account.login == repo.account.login {
+                                    Image(systemName: "checkmark")
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.tint)
+                                }
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Dzieci")
+                } footer: {
+                    Text("Konta Synergia połączone z tym Kontem LIBRUS. Dziecko przełączysz też menu w lewym górnym rogu każdego ekranu.")
                 }
             }
 
@@ -191,10 +217,6 @@ struct SettingsView: View {
         ), presenting: notice) { _ in
             Button("OK", role: .cancel) {}
         } message: { Text($0.message) }
-    }
-
-    private var currentLogin: String? {
-        Credentials.load()?.login
     }
 
     /// Turning the mirror on asks for Calendar access and does a first pass right

@@ -123,6 +123,7 @@ struct GradesView: View {
         .scrollContentBackground(.hidden)
         .background(Color.appGroupedBackground.ignoresSafeArea())
         .navigationTitle("Oceny")
+        .childSwitcher()
         .searchable(text: $search, prompt: "Przedmiot, kategoria, nauczyciel")
         .refreshable { await repo.refreshCore() }
         .onDisappear { repo.markGradesSeen() }

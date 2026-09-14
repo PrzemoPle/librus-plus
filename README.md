@@ -1,5 +1,14 @@
 # Librus Plus
 
+> **Fork rodzinny (PrzemoPle).** Ta gałąź różni się od oryginału
+> [WebMasterPL/librus-PP](https://github.com/WebMasterPL/librus-PP) jedną rzeczą:
+> obsługuje **kilkoro dzieci na jednym Koncie LIBRUS**. Po zalogowaniu aplikacja
+> pobiera wszystkie konta Synergia połączone z kontem rodzica, a dziecko przełącza
+> się menu w lewym górnym rogu każdego ekranu (albo w Ustawieniach → Dzieci).
+> Każde dziecko ma osobną pamięć podręczną, osobne plakietki „nowe”, osobne
+> powiadomienia (z imieniem w podtytule) i osobne wpisy w Kalendarzu.
+> Reszta — logowanie, ekrany, dystrybucja — jak w oryginale poniżej.
+
 Nieoficjalny klient iOS (SwiftUI) dla dziennika **Librus Synergia**. Funkcjonalnie
 wzorowany na [szkolny.eu](https://szkolny.eu), ale obsługuje **wyłącznie Librusa**.
 

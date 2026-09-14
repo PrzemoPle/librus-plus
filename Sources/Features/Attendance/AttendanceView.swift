@@ -96,6 +96,7 @@ struct AttendanceView: View {
         }
         .screenBackground()
         .navigationTitle("Frekwencja")
+        .childSwitcher()
         .refreshable { await repo.refreshCore() }
         .animation(Theme.Motion.quick, value: filter)
     }

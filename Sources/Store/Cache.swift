@@ -53,4 +53,11 @@ enum Cache {
     static func clearAll() {
         try? FileManager.default.removeItem(at: dir)
     }
+
+    /// Turns an account login into something safe to embed in a cache file name.
+    static func safeName(_ raw: String) -> String {
+        let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-.")
+        let cleaned = String(raw.map { allowed.contains($0) ? $0 : "_" })
+        return cleaned.isEmpty ? "default" : cleaned
+    }
 }

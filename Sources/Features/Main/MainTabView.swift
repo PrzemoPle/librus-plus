@@ -1,26 +1,38 @@
 import SwiftUI
 
+enum MainTab: Hashable {
+    case dashboard, grades, timetable, attendance, more
+}
+
 struct MainTabView: View {
     // NOTE: this view's body must NOT read `repo` — otherwise every background
     // `refreshCore()` (which mutates the repo) re-renders the whole TabView and
     // resets each tab's NavigationStack, kicking the user out of any detail view.
     // Badge counts are read inside the individual tab structs instead.
+    @Environment(AppState.self) private var app
+
     var body: some View {
-        TabView {
+        @Bindable var app = app
+        TabView(selection: $app.selectedTab) {
             DashboardTab()
                 .tabItem { Label("Pulpit", systemImage: "house.fill") }
+                .tag(MainTab.dashboard)
 
             GradesTab()
                 .tabItem { Label("Oceny", systemImage: "checkmark.seal.fill") }
+                .tag(MainTab.grades)
 
             TimetableTab()
                 .tabItem { Label("Plan", systemImage: "calendar") }
+                .tag(MainTab.timetable)
 
             AttendanceTab()
                 .tabItem { Label("Frekwencja", systemImage: "person.crop.circle.badge.checkmark") }
+                .tag(MainTab.attendance)
 
             MoreTab()
                 .tabItem { Label("Więcej", systemImage: "ellipsis.circle.fill") }
+                .tag(MainTab.more)
         }
         .minimizingTabBar()
     }
@@ -82,6 +94,7 @@ struct MoreView: View {
         .scrollContentBackground(.hidden)
         .background(Color.appGroupedBackground.ignoresSafeArea())
         .navigationTitle("Więcej")
+        .childSwitcher()
     }
 
     @ViewBuilder

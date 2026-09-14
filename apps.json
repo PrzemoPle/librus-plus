@@ -6,7 +6,7 @@
     {
       "name": "Librus Plus",
       "bundleIdentifier": "eu.mojlibrus.app",
-      "developerName": "WebMasterPL",
+      "developerName": "PrzemoPle",
       "subtitle": "Nieoficjalny klient Librus Synergia",
       "localizedDescription": "Nieoficjalny klient iOS dla dziennika Librus Synergia: oceny (z kalkulatorem średniej), plan lekcji z zastępstwami i zmianami sal, frekwencja, terminarz, uwagi, ogłoszenia, wiadomości (odbierane + wysłane, wysyłanie z wyborem odbiorców).\n\nLogujesz się e-mailem Konta LIBRUS. Bez serwera i telemetrii — dane trzymane wyłącznie w Keychainie urządzenia, łączność tylko z *.librus.pl. Aplikacja nie jest powiązana z firmą Librus. Do użytku edukacyjnego / własnego, na własną odpowiedzialność.",
       "iconURL": "https://raw.githubusercontent.com/WebMasterPL/librus-PP/main/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png",

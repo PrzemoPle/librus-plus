@@ -15,8 +15,11 @@ struct RootView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             case .loggedIn:
                 if let repo = app.repository {
+                    // Keyed on the child: switching rebuilds the tabs with fresh
+                    // navigation, so no detail view of the other child lingers.
                     MainTabView()
                         .environment(repo)
+                        .id(repo.account.login)
                         .transition(.opacity)
                 } else {
                     LaunchView()

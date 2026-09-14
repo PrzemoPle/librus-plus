@@ -99,7 +99,7 @@ struct DiagnosticsView: View {
         copied = false
         results = []
         defer { running = false }
-        results = await Diagnostics(session: app.session).run()
+        results = await Diagnostics(session: app.session, account: app.repository?.account.login).run()
     }
 
     private func dumpTimetable() async {
@@ -107,7 +107,7 @@ struct DiagnosticsView: View {
         dumpingTimetable = true
         timetableCopied = false
         defer { dumpingTimetable = false }
-        let json = await Diagnostics(session: app.session).rawTimetableJSON()
+        let json = await Diagnostics(session: app.session, account: app.repository?.account.login).rawTimetableJSON()
         UIPasteboard.general.setItems(
             [[UTType.utf8PlainText.identifier: json]],
             options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(10 * 60)]

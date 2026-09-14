@@ -45,8 +45,14 @@ enum CalendarSync {
     // MARK: - Sync
 
     @discardableResult
-    static func sync(events items: [CalendarEvent], bellSchedule: [BellPeriod]) async -> SyncResult {
+    /// `account` scopes the mirror to one child; `label` (the child's name) is
+    /// prefixed to every title when more than one child is linked.
+    static func sync(
+        events items: [CalendarEvent], bellSchedule: [BellPeriod],
+        account: String, label: String? = nil
+    ) async -> SyncResult {
         guard isAuthorized else { return .denied }
+        let tag = Cache.safeName(account)
 
         let store = EKEventStore()
         do {
@@ -59,9 +65,12 @@ enum CalendarSync {
             let existing = store.events(
                 matching: store.predicateForEvents(withStart: from, end: to, calendars: [calendar])
             )
+            // This child's entries only — plus untagged ones planted by a build
+            // before the child switcher, which the first sync adopts.
             var mine: [Int: EKEvent] = [:]
             for event in existing {
-                if let id = librusID(from: event.url) { mine[id] = event }
+                guard let key = eventKey(from: event.url) else { continue }
+                if key.account == nil || key.account == tag { mine[key.id] = event }
             }
 
             let wanted = items.filter { item in
@@ -74,14 +83,14 @@ enum CalendarSync {
             for item in wanted {
                 if let event = mine.removeValue(forKey: item.id) {
                     let before = signature(of: event)
-                    apply(item, to: event, in: calendar, bellSchedule: bellSchedule)
+                    apply(item, to: event, in: calendar, bellSchedule: bellSchedule, tag: tag, label: label)
                     if signature(of: event) != before {
                         try store.save(event, span: .thisEvent, commit: false)
                         updated += 1
                     }
                 } else {
                     let event = EKEvent(eventStore: store)
-                    apply(item, to: event, in: calendar, bellSchedule: bellSchedule)
+                    apply(item, to: event, in: calendar, bellSchedule: bellSchedule, tag: tag, label: label)
                     try store.save(event, span: .thisEvent, commit: false)
                     added += 1
                 }
@@ -133,12 +142,13 @@ enum CalendarSync {
     // MARK: - Mapping
 
     private static func apply(
-        _ item: CalendarEvent, to event: EKEvent, in calendar: EKCalendar, bellSchedule: [BellPeriod]
+        _ item: CalendarEvent, to event: EKEvent, in calendar: EKCalendar,
+        bellSchedule: [BellPeriod], tag: String, label: String?
     ) {
         event.calendar = calendar
-        event.title = title(for: item)
+        event.title = title(for: item, label: label)
         event.notes = notes(for: item)
-        event.url = URL(string: "\(urlScheme)\(item.id)")
+        event.url = URL(string: "\(urlScheme)\(tag)/\(item.id)")
 
         let day = item.date ?? LibrusDate.today
         let span = span(for: item, on: day, bellSchedule: bellSchedule)
@@ -147,11 +157,12 @@ enum CalendarSync {
         event.isAllDay = span.allDay
     }
 
-    private static func title(for item: CalendarEvent) -> String {
+    private static func title(for item: CalendarEvent, label: String?) -> String {
+        let prefix = label.map { "\($0) · " } ?? ""
         let body = item.content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !body.isEmpty else { return item.category ?? item.subject ?? "Wpis z Librusa" }
-        if let subject = item.subject, !subject.isEmpty { return "\(subject): \(body)" }
-        return body
+        guard !body.isEmpty else { return prefix + (item.category ?? item.subject ?? "Wpis z Librusa") }
+        if let subject = item.subject, !subject.isEmpty { return "\(prefix)\(subject): \(body)" }
+        return prefix + body
     }
 
     private static func notes(for item: CalendarEvent) -> String {
@@ -189,9 +200,19 @@ enum CalendarSync {
         return (midnight, end, true)
     }
 
-    private static func librusID(from url: URL?) -> Int? {
+    /// Key planted in `EKEvent.url`: `librus-event://<account>/<id>`.
+    static func eventURL(account: String, id: Int) -> URL? {
+        URL(string: "\(urlScheme)\(Cache.safeName(account))/\(id)")
+    }
+
+    /// Parses the key back. Entries from builds before the child switcher carry
+    /// only `<id>` and come back with a nil account.
+    static func eventKey(from url: URL?) -> (account: String?, id: Int)? {
         guard let string = url?.absoluteString, string.hasPrefix(urlScheme) else { return nil }
-        return Int(string.dropFirst(urlScheme.count))
+        let parts = string.dropFirst(urlScheme.count).split(separator: "/", maxSplits: 1)
+        if parts.count == 2, let id = Int(parts[1]) { return (String(parts[0]), id) }
+        if parts.count == 1, let id = Int(parts[0]) { return (nil, id) }
+        return nil
     }
 
     /// Cheap change detector so an unchanged entry isn't re-saved on every refresh.

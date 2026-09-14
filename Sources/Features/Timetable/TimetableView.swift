@@ -64,6 +64,7 @@ struct TimetableView: View {
         .screenBackground()
         .navigationTitle("Plan lekcji")
         .navigationBarTitleDisplayMode(.inline)
+        .childSwitcher()
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Dziś") {
