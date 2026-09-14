@@ -191,9 +191,14 @@ jobs:
 
       - name: Collect Xcode distribution logs (on failure)
         if: failure()
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           mkdir -p dist-logs
           find "${TMPDIR:-/tmp}" /var/folders -maxdepth 4 -name "*.xcdistributionlogs" -exec cp -R {} dist-logs/ \; 2>/dev/null || true
+          # The logs quote the API key id and issuer id; keep them out of a public artifact.
+          find dist-logs -type f -exec sed -i '' -e "s/$ASC_KEY_ID/<key-id>/g" -e "s/$ASC_ISSUER_ID/<issuer-id>/g" {} + 2>/dev/null || true
           ls -R dist-logs | head -50
 
       - name: Upload distribution logs (on failure)
