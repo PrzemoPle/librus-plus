@@ -194,8 +194,14 @@ struct TimetableView: View {
 }
 
 struct LessonRow: View {
+    @Environment(SubjectColors.self) private var subjectColors
     let entry: TimetableEntry
     var highlight: Bool = false
+
+    /// Optional user-picked colour; the ongoing lesson keeps the accent.
+    private var subjectColor: Color? {
+        highlight ? nil : subjectColors.color(for: entry.subject)
+    }
 
     var body: some View {
         HStack(spacing: Theme.Space.md) {
@@ -203,14 +209,15 @@ struct LessonRow: View {
                 Text("\(entry.lessonNo)")
                     .font(.headline.weight(.bold))
                     .fontDesign(.rounded)
-                    .foregroundStyle(highlight ? AnyShapeStyle(.tint) : AnyShapeStyle(Color.primary))
+                    .foregroundStyle(highlight ? AnyShapeStyle(.tint)
+                                     : AnyShapeStyle(subjectColor ?? Color.primary))
                 Text(entry.start).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
                 Text(entry.end).font(.caption2.monospacedDigit()).foregroundStyle(.tertiary)
             }
             .frame(width: 46)
 
             Rectangle()
-                .fill(highlight ? AnyShapeStyle(.tint) : AnyShapeStyle(Color.clear))
+                .fill(highlight ? AnyShapeStyle(.tint) : AnyShapeStyle(subjectColor ?? Color.clear))
                 .frame(width: 3)
                 .clipShape(Capsule())
 

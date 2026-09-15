@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage(BackgroundRefresh.Keys.timetable) private var notifyTimetable = false
     @AppStorage(BackgroundRefresh.Keys.messages) private var notifyMessages = false
     @AppStorage(CalendarSync.enabledKey) private var syncCalendar = false
+    @AppStorage(Appearance.storageKey) private var appearance: Appearance = .system
 
     /// One alert slot shared by every informational message on this screen —
     /// stacking several `.alert`s on one view fights over the presentation.
@@ -20,6 +21,9 @@ struct SettingsView: View {
         let title: String
         let message: String
     }
+
+    /// Who to write to about the app — also the feedback address for TestFlight.
+    static let contactEmail = "przemyslaw@plewinski.pl"
 
     private var version: String {
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
@@ -71,6 +75,23 @@ struct SettingsView: View {
                 } footer: {
                     Text("Konta Synergia połączone z tym Kontem LIBRUS. Dziecko przełączysz też menu w lewym górnym rogu każdego ekranu.")
                 }
+            }
+
+            Section {
+                Picker("Motyw", selection: $appearance) {
+                    ForEach(Appearance.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: appearance) { Haptics.selection() }
+                NavigationLink {
+                    SubjectColorsView()
+                } label: {
+                    Label("Kolory przedmiotów", systemImage: "paintpalette")
+                }
+            } header: {
+                Text("Wygląd")
+            } footer: {
+                Text("Kolory przedmiotów są opcjonalne — bez nich aplikacja wygląda jak dotąd.")
             }
 
             Section {
@@ -166,6 +187,16 @@ struct SettingsView: View {
 
             Section("O aplikacji") {
                 LabeledContent("Wersja", value: version)
+                Link(destination: URL(string: "mailto:\(Self.contactEmail)")!) {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Kontakt")
+                            Text(Self.contactEmail).font(.caption).foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "envelope")
+                    }
+                }
                 Link(destination: URL(string: "https://github.com/PrzemoPle/librus-plus/issues")!) {
                     Label("Zgłoś problem", systemImage: "ladybug")
                 }

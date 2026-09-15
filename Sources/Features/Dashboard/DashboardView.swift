@@ -206,6 +206,7 @@ struct DashboardView: View {
                                     .fontWeight(ongoing ? .semibold : .regular)
                                     .foregroundStyle(ongoing ? AnyShapeStyle(.tint) : AnyShapeStyle(Color.secondary))
                                     .frame(minWidth: 46, alignment: .leading)
+                                SubjectDot(subject: entry.subject)
                                 Text(entry.subject)
                                     .font(.callout)
                                     .fontWeight(ongoing ? .medium : .regular)

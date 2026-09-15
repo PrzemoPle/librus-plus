@@ -94,6 +94,7 @@ struct GradesView: View {
                     }
                 } header: {
                     HStack(spacing: Theme.Space.sm) {
+                        SubjectDot(subject: subject.subjectName)
                         Text(subject.subjectName)
                         Spacer(minLength: Theme.Space.sm)
                         if let avg = subject.average(filter, current: current) {
