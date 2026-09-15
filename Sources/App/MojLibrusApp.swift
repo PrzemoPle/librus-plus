@@ -11,6 +11,7 @@ struct MojLibrusApp: App {
             RootView()
                 .environment(appState)
                 .environment(SubjectColors.shared)
+                .environment(TabLayout.shared)
                 .tint(.accentColor)
                 .preferredColorScheme(appearance.colorScheme)
                 .task { BackgroundRefresh.scheduleIfEnabled() }

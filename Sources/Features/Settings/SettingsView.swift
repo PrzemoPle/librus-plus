@@ -88,10 +88,15 @@ struct SettingsView: View {
                 } label: {
                     Label("Kolory przedmiotów", systemImage: "paintpalette")
                 }
+                NavigationLink {
+                    TabLayoutView()
+                } label: {
+                    Label("Zakładki", systemImage: "square.grid.2x2")
+                }
             } header: {
                 Text("Wygląd")
             } footer: {
-                Text("Kolory przedmiotów są opcjonalne — bez nich aplikacja wygląda jak dotąd.")
+                Text("Kolory przedmiotów są opcjonalne — bez nich aplikacja wygląda jak dotąd. W Zakładkach wybierzesz, które ekrany są w dolnym pasku, np. Terminarz zamiast Frekwencji.")
             }
 
             Section {

@@ -57,6 +57,7 @@ struct NotesView: View {
         .scrollContentBackground(.hidden)
         .background(Color.appGroupedBackground.ignoresSafeArea())
         .navigationTitle("Uwagi")
+        .childSwitcher()
         .searchable(text: $search, prompt: "Treść, kategoria, nauczyciel")
         .refreshable { await repo.refreshCore() }
         .task { await repo.refreshCoreIfStale() }

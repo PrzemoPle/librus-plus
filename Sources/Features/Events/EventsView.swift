@@ -82,6 +82,7 @@ struct EventsView: View {
         .scrollContentBackground(.hidden)
         .background(Color.appGroupedBackground.ignoresSafeArea())
         .navigationTitle("Terminarz")
+        .childSwitcher()
         .searchable(text: $search, prompt: "Opis, kategoria, przedmiot")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

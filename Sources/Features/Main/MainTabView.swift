@@ -1,40 +1,36 @@
 import SwiftUI
 
-enum MainTab: Hashable {
-    case dashboard, grades, timetable, attendance, more
-}
-
 struct MainTabView: View {
     // NOTE: this view's body must NOT read `repo` — otherwise every background
     // `refreshCore()` (which mutates the repo) re-renders the whole TabView and
     // resets each tab's NavigationStack, kicking the user out of any detail view.
     // Badge counts are read inside the individual tab structs instead.
     @Environment(AppState.self) private var app
+    @Environment(TabLayout.self) private var layout
 
     var body: some View {
         @Bindable var app = app
         TabView(selection: $app.selectedTab) {
             DashboardTab()
-                .tabItem { Label("Pulpit", systemImage: "house.fill") }
+                .tabItem { Label(MainTab.dashboard.title, systemImage: MainTab.dashboard.systemImage) }
                 .tag(MainTab.dashboard)
 
-            GradesTab()
-                .tabItem { Label("Oceny", systemImage: "checkmark.seal.fill") }
-                .tag(MainTab.grades)
-
-            TimetableTab()
-                .tabItem { Label("Plan", systemImage: "calendar") }
-                .tag(MainTab.timetable)
-
-            AttendanceTab()
-                .tabItem { Label("Frekwencja", systemImage: "person.crop.circle.badge.checkmark") }
-                .tag(MainTab.attendance)
+            ForEach(layout.bar) { tab in
+                TabScreen(tab: tab)
+                    .tabItem { Label(tab.title, systemImage: tab.systemImage) }
+                    .tag(tab)
+            }
 
             MoreTab()
-                .tabItem { Label("Więcej", systemImage: "ellipsis.circle.fill") }
+                .tabItem { Label(MainTab.more.title, systemImage: MainTab.more.systemImage) }
                 .tag(MainTab.more)
         }
         .minimizingTabBar()
+        .onChange(of: layout.bar) {
+            // The selected screen just moved to Więcej — don't leave the bar
+            // pointing at a tab that no longer exists.
+            if !layout.contains(app.selectedTab) { app.selectedTab = .dashboard }
+        }
     }
 }
 
@@ -42,47 +38,74 @@ private struct DashboardTab: View {
     var body: some View { NavigationStack { DashboardView() } }
 }
 
-private struct GradesTab: View {
+/// One user-placed tab. Reads the repo here (not in `MainTabView`) so a data
+/// refresh re-renders only this tab's badge.
+private struct TabScreen: View {
     @Environment(DataRepository.self) private var repo
+    let tab: MainTab
+
     var body: some View {
-        NavigationStack { GradesView() }
-            .badge(repo.unseenGradeCount)
+        NavigationStack { TabRoot(tab: tab) }
+            .badge(badge)
+    }
+
+    private var badge: Int {
+        switch tab {
+        case .grades: return repo.unseenGradeCount
+        case .messages: return repo.unreadMessageCount
+        case .announcements: return repo.unreadAnnouncementCount
+        default: return 0
+        }
     }
 }
 
-private struct TimetableTab: View {
-    var body: some View { NavigationStack { TimetableView() } }
-}
+/// The root screen for a placeable tab — shared by the tab bar and the Więcej list.
+struct TabRoot: View {
+    let tab: MainTab
 
-private struct AttendanceTab: View {
-    var body: some View { NavigationStack { AttendanceView() } }
+    var body: some View {
+        switch tab {
+        case .grades: GradesView()
+        case .timetable: TimetableView()
+        case .attendance: AttendanceView()
+        case .announcements: AnnouncementsView()
+        case .events: EventsView()
+        case .notes: NotesView()
+        case .messages: MessagesView()
+        case .dashboard: DashboardView()
+        case .more: MoreView()
+        }
+    }
 }
 
 private struct MoreTab: View {
     @Environment(DataRepository.self) private var repo
+    @Environment(TabLayout.self) private var layout
+
     var body: some View {
         NavigationStack { MoreView() }
-            .badge(repo.unreadAnnouncementCount + repo.unreadMessageCount)
+            .badge(badge)
+    }
+
+    /// Unread counts only for the screens that actually live under Więcej.
+    private var badge: Int {
+        let hidden = layout.inMore
+        return (hidden.contains(.announcements) ? repo.unreadAnnouncementCount : 0)
+            + (hidden.contains(.messages) ? repo.unreadMessageCount : 0)
     }
 }
 
 struct MoreView: View {
     @Environment(DataRepository.self) private var repo
+    @Environment(TabLayout.self) private var layout
 
     var body: some View {
         List {
             Section {
-                row("Ogłoszenia", "megaphone.fill", .orange, badge: repo.unreadAnnouncementCount) {
-                    AnnouncementsView()
-                }
-                row("Terminarz", "calendar.badge.clock", .red) {
-                    EventsView()
-                }
-                row("Uwagi", "exclamationmark.bubble.fill", .purple) {
-                    NotesView()
-                }
-                row("Wiadomości", "envelope.fill", .blue, badge: repo.unreadMessageCount) {
-                    MessagesView()
+                ForEach(layout.inMore) { tab in
+                    row(tab.longTitle, tab.systemImage, tab.tint, badge: badge(for: tab)) {
+                        TabRoot(tab: tab)
+                    }
                 }
             }
             Section {
@@ -95,6 +118,15 @@ struct MoreView: View {
         .background(Color.appGroupedBackground.ignoresSafeArea())
         .navigationTitle("Więcej")
         .childSwitcher()
+    }
+
+    private func badge(for tab: MainTab) -> Int {
+        switch tab {
+        case .announcements: return repo.unreadAnnouncementCount
+        case .messages: return repo.unreadMessageCount
+        case .grades: return repo.unseenGradeCount
+        default: return 0
+        }
     }
 
     @ViewBuilder

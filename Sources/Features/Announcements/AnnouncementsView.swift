@@ -66,6 +66,7 @@ struct AnnouncementsView: View {
         .scrollContentBackground(.hidden)
         .background(Color.appGroupedBackground.ignoresSafeArea())
         .navigationTitle("Ogłoszenia")
+        .childSwitcher()
         .searchable(text: $search, prompt: "Temat, treść lub autor")
         .refreshable { await repo.refreshCore() }
         .task { await repo.refreshCoreIfStale() }

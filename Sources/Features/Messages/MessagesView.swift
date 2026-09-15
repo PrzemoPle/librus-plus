@@ -103,6 +103,7 @@ struct MessagesView: View {
         .scrollContentBackground(.hidden)
         .background(Color.appGroupedBackground.ignoresSafeArea())
         .navigationTitle("Wiadomości")
+        .childSwitcher()
         .searchable(text: $search, prompt: "Nadawca lub temat")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
