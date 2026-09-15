@@ -7,7 +7,7 @@ import Foundation
 /// any groups listed in the embedded provisioning profile, and use the first that
 /// actually has a container. Degrades to a no-op when none is available.
 enum SharedStore {
-    static let declaredGroup = "group.eu.mojlibrus.app"
+    static let declaredGroup = "group.pl.plewinscy.dzienniczek"
     private static let timetableKey = "widget.timetable.v1"
 
     private static let resolvedGroup: String? = {
@@ -59,11 +59,13 @@ enum SharedStore {
         }
         var days: [Day]
         var updated: Date
+        /// First name of the child the timetable belongs to (nil on old payloads).
+        var student: String?
     }
 
-    static func publishTimetable(_ days: [WidgetTimetable.Day]) {
+    static func publishTimetable(_ days: [WidgetTimetable.Day], student: String? = nil) {
         guard let defaults else { return }
-        let payload = WidgetTimetable(days: days, updated: Date())
+        let payload = WidgetTimetable(days: days, updated: Date(), student: student)
         if let data = try? JSONEncoder().encode(payload) {
             defaults.set(data, forKey: timetableKey)
         }

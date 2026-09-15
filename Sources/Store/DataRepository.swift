@@ -449,7 +449,7 @@ final class DataRepository {
         }
         saveCache()
         if isActive {
-            SharedStore.publishTimetable(upcomingDays())
+            SharedStore.publishTimetable(upcomingDays(), student: account.shortName)
             WidgetRefresher.reload()
         }
     }

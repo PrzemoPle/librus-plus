@@ -4,11 +4,14 @@ Jednorazowa konfiguracja podpisywania pod TestFlight — uruchamiasz TY, na swoi
 
 Co robi (przez App Store Connect API, Twoim kluczem):
   1. generuje klucz prywatny + CSR i zakłada certyfikat „Apple Distribution”,
-  2. rejestruje App ID (bundle id), jeśli go nie ma,
-  3. zakłada profil provisioning typu App Store,
-  4. wgrywa sekrety do repo na GitHubie (gh secret set) — klucz API, certyfikat .p12
-     z hasłem, profil,
-  5. sprawdza, czy w App Store Connect istnieje już rekord aplikacji (tego API
+  2. rejestruje App ID aplikacji i widżetu, jeśli ich nie ma, i włącza na obu
+     możliwość App Groups,
+  3. zatrzymuje się na JEDEN ręczny krok: grupę App Group trzeba założyć i
+     przypisać do obu App ID w portalu deweloperskim (API Apple tego nie umie),
+  4. zakłada profile provisioning typu App Store dla aplikacji i widżetu,
+  5. wgrywa sekrety do repo na GitHubie (gh secret set) — klucz API, certyfikat .p12
+     z hasłem, oba profile,
+  6. sprawdza, czy w App Store Connect istnieje już rekord aplikacji (tego API
      nie potrafi założyć — jeśli brak, wypisze instrukcję).
 
 Nic nie jest wypisywane na ekran poza statusem. Klucz i .p12 zostają lokalnie w
@@ -25,7 +28,8 @@ Użycie:
       --key-id ABC123DEFG \\
       --issuer-id 12345678-1234-1234-1234-123456789012
 
-Opcjonalnie: --bundle-id, --team-id, --repo, --profile-name (domyślne poniżej).
+Opcjonalnie: --bundle-id, --team-id, --repo, --profile-name (domyślne poniżej),
+--no-pause (nie czekaj na ręczny krok z App Group — gdy jest już zrobiony).
 """
 from __future__ import annotations
 
@@ -48,6 +52,9 @@ DEFAULT_BUNDLE_ID = "pl.plewinscy.dzienniczek"
 DEFAULT_TEAM_ID = "94MSU24AZ7"
 DEFAULT_REPO = "PrzemoPle/librus-plus"
 DEFAULT_PROFILE_NAME = "Dzienniczek App Store"
+WIDGET_BUNDLE_SUFFIX = ".widget"
+WIDGET_PROFILE_NAME = "Dzienniczek Widget App Store"
+APP_GROUP = "group.pl.plewinscy.dzienniczek"
 STATE_DIR = Path.home() / "Library" / "Application Support" / "dzienniczek-signing"
 
 
@@ -116,9 +123,9 @@ class AppStoreConnect:
         return self._token
 
     def request(self, method: str, path: str, body: dict | None = None,
-                allow_404: bool = False) -> dict:
-        """One API call. Dies with a readable message on any HTTP error, except a
-        404 when `allow_404` is set — then returns an empty dict."""
+                tolerate: tuple[int, ...] = ()) -> dict:
+        """One API call. Dies with a readable message on any HTTP error, except the
+        statuses listed in `tolerate` — then returns an empty dict."""
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(API + path, data=data, method=method)
         req.add_header("Authorization", f"Bearer {self.token()}")
@@ -130,7 +137,7 @@ class AppStoreConnect:
                 raw = resp.read()
                 return json.loads(raw) if raw else {}
         except urllib.error.HTTPError as exc:
-            if exc.code == 404 and allow_404:
+            if exc.code in tolerate:
                 return {}
             detail = exc.read().decode(errors="replace")
             try:
@@ -170,7 +177,7 @@ def ensure_certificate(asc: AppStoreConnect, state: Path, key: Path) -> tuple[st
     meta = state / "certificate.json"
     if cer.exists() and meta.exists():
         cert_id = json.loads(meta.read_text())["id"]
-        existing = asc.request("GET", f"/v1/certificates/{cert_id}", allow_404=True)
+        existing = asc.request("GET", f"/v1/certificates/{cert_id}", tolerate=(404,))
         if existing.get("data"):
             step(f"certyfikat Apple Distribution już istnieje (id {cert_id}) — używam go")
             return cert_id, cer
@@ -220,7 +227,7 @@ def build_p12(state: Path, key: Path, cer: Path) -> tuple[Path, str]:
     return p12, password
 
 
-def ensure_bundle_id(asc: AppStoreConnect, bundle_id: str) -> str:
+def ensure_bundle_id(asc: AppStoreConnect, bundle_id: str, name: str) -> str:
     listed = asc.request("GET", f"/v1/bundleIds?filter[identifier]={bundle_id}&limit=200")
     for item in listed.get("data", []):
         if item["attributes"]["identifier"] == bundle_id:
@@ -229,12 +236,43 @@ def ensure_bundle_id(asc: AppStoreConnect, bundle_id: str) -> str:
     step(f"rejestruję App ID {bundle_id}")
     created = asc.request("POST", "/v1/bundleIds", {
         "data": {"type": "bundleIds",
-                 "attributes": {"identifier": bundle_id, "name": "Dzienniczek", "platform": "IOS"}}
+                 "attributes": {"identifier": bundle_id, "name": name, "platform": "IOS"}}
     })
     return created["data"]["id"]
 
 
-def ensure_profile(asc: AppStoreConnect, state: Path, name: str, bundle_id_res: str, cert_id: str) -> Path:
+def enable_app_groups(asc: AppStoreConnect, bundle_res: str, bundle_id: str) -> None:
+    """Turns the App Groups capability on. Assigning the actual group is not
+    exposed by Apple's API — that stays a manual step in the developer portal."""
+    asc.request("POST", "/v1/bundleIdCapabilities", {
+        "data": {
+            "type": "bundleIdCapabilities",
+            "attributes": {"capabilityType": "APP_GROUPS"},
+            "relationships": {"bundleId": {"data": {"type": "bundleIds", "id": bundle_res}}},
+        }
+    }, tolerate=(409,))
+    step(f"App Groups włączone na {bundle_id}")
+
+
+def wait_for_manual_app_group(app_id: str, widget_id: str) -> None:
+    print(f"""
+RĘCZNY KROK (jedyny — API Apple nie potrafi tworzyć ani przypisywać App Group):
+  1. https://developer.apple.com/account/resources/identifiers/list/applicationGroup
+     → „+” → App Groups → Description: Dzienniczek, Identifier: {APP_GROUP}
+     → Continue → Register. (Pomiń, jeśli grupa już istnieje.)
+  2. Identifiers → App IDs → {app_id} → w tabeli Capabilities przy „App Groups”
+     kliknij Configure/Edit → zaznacz {APP_GROUP} → Continue → Save
+     (ostrzeżenie o unieważnieniu profili jest w porządku — zaraz je odnowimy).
+  3. To samo dla {widget_id}.
+""")
+    try:
+        input("Naciśnij Enter, gdy grupa jest przypisana do OBU App ID (Ctrl+C przerywa)… ")
+    except EOFError:
+        pass
+
+
+def ensure_profile(asc: AppStoreConnect, state: Path, name: str, bundle_id_res: str, cert_id: str,
+                   file_name: str = "appstore.mobileprovision") -> Path:
     """Always (re)creates the App Store profile so it is guaranteed to include the
     certificate we just secured. Old profiles with the same name are removed."""
     listed = asc.request("GET", f"/v1/profiles?filter[name]={urllib.parse.quote(name)}&limit=200")
@@ -253,7 +291,7 @@ def ensure_profile(asc: AppStoreConnect, state: Path, name: str, bundle_id_res: 
             },
         }
     })
-    profile = state / "appstore.mobileprovision"
+    profile = state / file_name
     profile.write_bytes(base64.b64decode(created["data"]["attributes"]["profileContent"]))
     return profile
 
@@ -266,7 +304,7 @@ def set_secret(repo: str, name: str, value: str) -> None:
 
 
 def upload_secrets(repo: str, key_path: Path, key_id: str, issuer_id: str,
-                   p12: Path, p12_password: str, profile: Path) -> None:
+                   p12: Path, p12_password: str, profile: Path, widget_profile: Path) -> None:
     step(f"wgrywam sekrety do {repo}")
     set_secret(repo, "ASC_KEY_ID", key_id)
     set_secret(repo, "ASC_ISSUER_ID", issuer_id)
@@ -274,6 +312,7 @@ def upload_secrets(repo: str, key_path: Path, key_id: str, issuer_id: str,
     set_secret(repo, "DIST_CERT_P12", base64.b64encode(p12.read_bytes()).decode())
     set_secret(repo, "DIST_CERT_PASSWORD", p12_password)
     set_secret(repo, "DIST_PROFILE", base64.b64encode(profile.read_bytes()).decode())
+    set_secret(repo, "DIST_PROFILE_WIDGET", base64.b64encode(widget_profile.read_bytes()).decode())
 
 
 def check_app_record(asc: AppStoreConnect, bundle_id: str) -> bool:
@@ -292,6 +331,8 @@ def main() -> None:
     parser.add_argument("--team-id", default=DEFAULT_TEAM_ID)
     parser.add_argument("--repo", default=DEFAULT_REPO)
     parser.add_argument("--profile-name", default=DEFAULT_PROFILE_NAME)
+    parser.add_argument("--no-pause", action="store_true",
+                        help="nie czekaj na ręczne przypisanie App Group (gdy już zrobione)")
     args = parser.parse_args()
 
     key_path = Path(args.key).expanduser()
@@ -309,11 +350,20 @@ def main() -> None:
     private_key = ensure_private_key(STATE_DIR)
     cert_id, cer = ensure_certificate(asc, STATE_DIR, private_key)
     p12, p12_password = build_p12(STATE_DIR, private_key, cer)
-    bundle_res = ensure_bundle_id(asc, args.bundle_id)
+    widget_bundle_id = args.bundle_id + WIDGET_BUNDLE_SUFFIX
+    bundle_res = ensure_bundle_id(asc, args.bundle_id, "Dzienniczek")
+    widget_res = ensure_bundle_id(asc, widget_bundle_id, "Dzienniczek Widget")
+    enable_app_groups(asc, bundle_res, args.bundle_id)
+    enable_app_groups(asc, widget_res, widget_bundle_id)
+    if not args.no_pause:
+        wait_for_manual_app_group(args.bundle_id, widget_bundle_id)
     profile = ensure_profile(asc, STATE_DIR, args.profile_name, bundle_res, cert_id)
-    upload_secrets(args.repo, key_path, args.key_id, args.issuer_id, p12, p12_password, profile)
+    widget_profile = ensure_profile(asc, STATE_DIR, WIDGET_PROFILE_NAME, widget_res, cert_id,
+                                    file_name="widget.mobileprovision")
+    upload_secrets(args.repo, key_path, args.key_id, args.issuer_id, p12, p12_password,
+                   profile, widget_profile)
 
-    print("\nGotowe. Sekrety są w repo, certyfikat i profil na koncie Apple.")
+    print("\nGotowe. Sekrety są w repo, certyfikat i oba profile na koncie Apple.")
     if check_app_record(asc, args.bundle_id):
         print(f"Rekord aplikacji dla {args.bundle_id} istnieje w App Store Connect.")
     else:

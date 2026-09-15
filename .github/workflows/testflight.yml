@@ -5,7 +5,7 @@ name: testflight
 # Needs six repository secrets, all written by `scripts/setup_signing.py`:
 #   ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY   – App Store Connect API key
 #   DIST_CERT_P12, DIST_CERT_PASSWORD             – Apple Distribution certificate
-#   DIST_PROFILE                                  – App Store provisioning profile
+#   DIST_PROFILE, DIST_PROFILE_WIDGET             – App Store profiles (app, widget)
 #
 # Signing is manual (certificate + profile from secrets) because `xcodebuild
 # archive` insists on a signing identity with a private key on the machine —
@@ -37,8 +37,10 @@ jobs:
       SCHEME: MojLibrus
       APP_NAME: MojLibrus
       BUNDLE_ID: pl.plewinscy.dzienniczek
+      WIDGET_BUNDLE_ID: pl.plewinscy.dzienniczek.widget
       TEAM_ID: 94MSU24AZ7
       PROFILE_NAME: Dzienniczek App Store
+      WIDGET_PROFILE_NAME: Dzienniczek Widget App Store
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -74,12 +76,13 @@ jobs:
           DIST_CERT_P12: ${{ secrets.DIST_CERT_P12 }}
           DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
           DIST_PROFILE: ${{ secrets.DIST_PROFILE }}
+          DIST_PROFILE_WIDGET: ${{ secrets.DIST_PROFILE_WIDGET }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           set -euo pipefail
-          for v in DIST_CERT_P12 DIST_CERT_PASSWORD DIST_PROFILE ASC_PRIVATE_KEY ASC_KEY_ID ASC_ISSUER_ID; do
+          for v in DIST_CERT_P12 DIST_CERT_PASSWORD DIST_PROFILE DIST_PROFILE_WIDGET ASC_PRIVATE_KEY ASC_KEY_ID ASC_ISSUER_ID; do
             if [ -z "${!v:-}" ]; then echo "::error::brak sekretu $v — uruchom scripts/setup_signing.py"; exit 1; fi
           done
 
@@ -98,13 +101,19 @@ jobs:
           rm -f "$RUNNER_TEMP/dist.p12"
           echo "Identities:"; security find-identity -v -p codesigning "$KEYCHAIN"
 
-          echo "$DIST_PROFILE" | base64 --decode > "$RUNNER_TEMP/profile.mobileprovision"
-          UUID=$(security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" | plutil -extract UUID raw -o - -)
-          for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
-            mkdir -p "$dir"
-            cp "$RUNNER_TEMP/profile.mobileprovision" "$dir/$UUID.mobileprovision"
-          done
-          echo "Profile $UUID installed"
+          install_profile() {
+            echo "$1" | base64 --decode > "$RUNNER_TEMP/profile.mobileprovision"
+            UUID=$(security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" | plutil -extract UUID raw -o - -)
+            NAME=$(security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" | plutil -extract Name raw -o - -)
+            for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+              mkdir -p "$dir"
+              cp "$RUNNER_TEMP/profile.mobileprovision" "$dir/$UUID.mobileprovision"
+            done
+            echo "Profile installed: $NAME ($UUID)"
+          }
+          install_profile "$DIST_PROFILE"
+          install_profile "$DIST_PROFILE_WIDGET"
+          rm -f "$RUNNER_TEMP/profile.mobileprovision"
 
           mkdir -p "$HOME/private_keys"
           printf '%s\n' "$ASC_PRIVATE_KEY" > "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
@@ -122,11 +131,7 @@ jobs:
             -derivedDataPath build \
             MARKETING_VERSION=${{ steps.ver.outputs.version }} \
             CURRENT_PROJECT_VERSION=${{ steps.ver.outputs.build }} \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
-            CODE_SIGN_STYLE=Manual \
             CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
             | xcbeautify --renderer github-actions
 
       # Two exports on purpose: the first writes a signed .ipa we always keep as an
@@ -147,7 +152,10 @@ jobs:
             <key>teamID</key><string>$TEAM_ID</string>
             <key>signingCertificate</key><string>Apple Distribution</string>
             <key>provisioningProfiles</key>
-            <dict><key>$BUNDLE_ID</key><string>$PROFILE_NAME</string></dict>
+            <dict>
+              <key>$BUNDLE_ID</key><string>$PROFILE_NAME</string>
+              <key>$WIDGET_BUNDLE_ID</key><string>$WIDGET_PROFILE_NAME</string>
+            </dict>
             <key>uploadSymbols</key><true/>
             <key>manageAppVersionAndBuildNumber</key><false/>
           </dict>

@@ -9,11 +9,13 @@ struct TimetableEntryTL: TimelineEntry {
     let dayLabel: String
     let updated: Date?
     let stale: Bool
+    /// Whose timetable this is — the child selected in the app.
+    var student: String? = nil
 }
 
 struct TimetableProvider: TimelineProvider {
     func placeholder(in context: Context) -> TimetableEntryTL {
-        TimetableEntryTL(date: Date(), day: Self.sample, dayLabel: "Dziś", updated: Date(), stale: false)
+        TimetableEntryTL(date: Date(), day: Self.sample, dayLabel: "Dziś", updated: Date(), stale: false, student: "Ania")
     }
 
     func getSnapshot(in context: Context, completion: @escaping (TimetableEntryTL) -> Void) {
@@ -61,7 +63,7 @@ struct TimetableProvider: TimelineProvider {
             return now.timeIntervalSince(u) > 24 * 3600
         }()
         return TimetableEntryTL(date: now, day: chosen, dayLabel: label,
-                                updated: payload?.updated, stale: stale)
+                                updated: payload?.updated, stale: stale, student: payload?.student)
     }
 
     private func minutes(_ hhmm: String) -> Int? {
@@ -93,7 +95,7 @@ struct TimetableWidget: Widget {
                 .containerBackground(.background, for: .widget)
         }
         .configurationDisplayName("Plan lekcji")
-        .description("Najbliższe lekcje z zastępstwami i odwołaniami.")
+        .description("Najbliższe lekcje wybranego dziecka, z zastępstwami i odwołaniami.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
@@ -124,8 +126,11 @@ struct TimetableWidgetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
+            HStack(spacing: 4) {
                 Text(entry.dayLabel).font(.caption.bold())
+                if let student = entry.student, !student.isEmpty {
+                    Text("· \(student)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
                 Spacer()
                 if entry.stale {
                     Image(systemName: "exclamationmark.triangle.fill")

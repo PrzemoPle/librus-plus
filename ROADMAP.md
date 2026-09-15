@@ -2,13 +2,15 @@
 
 Uzgodniony backlog usprawnień. Robimy od góry; punkt skreślamy, gdy trafi do TestFlight.
 
+Punkty 1–4 są w TestFlight od buildu 1.1.0 (1005), 15.09.2026.
+
 ## Kolejność
 
 1. ~~**Data i pozycja świeżej wiadomości**~~ — zrobione 15.09.2026, błąd. Parser brał datę z piątej komórki wiersza; wiersz nowej wiadomości ma dodatkową komórkę, więc data nie parsowała się i wiadomość spadała na dół. Parser szuka teraz komórki z datą, przyjmuje też `15.09.2026 07:45`, a wiadomość bez daty ląduje na górze. W Diagnostyce jest przycisk „Kopiuj surowy HTML skrzynki” na wypadek kolejnego układu.
 2. ~~**Jasny / ciemny / systemowy**~~ — zrobione 15.09.2026; przełącznik w Ustawieniach, `preferredColorScheme` na korzeniu aplikacji, wybór w `AppStorage`. Mała zmiana.
 3. ~~**Kolory przedmiotów**~~ — zrobione 15.09.2026; opcjonalne: domyślnie nic się nie zmienia, kolor ma tylko przedmiot, któremu użytkownik go nadał. Ekran w Ustawieniach z listą przedmiotów (z planu i ocen) i paletą kilkunastu kolorów. Kolor widoczny w planie (pasek przy lekcji), na pulpicie i w ocenach. Zapis lokalny, wspólny dla obojga dzieci po nazwie przedmiotu. Średnia zmiana.
 4. ~~**Własny układ zakładek**~~ — zrobione 15.09.2026; Ustawienia → Wygląd → Zakładki: wybór trzech ekranów między Pulpitem a Więcej (np. Terminarz zamiast Frekwencji); reszta zostaje w „Więcej”. Zapis lokalny, per telefon. Średnia zmiana. Przeciąganie ikon palcem jak na ekranie głównym iOS nie jest dostępne dla pasków zakładek na iPhonie, stąd lista wyboru.
-5. **Widżety** — kod widżetu planu lekcji jest w repo (`Sources/Widget`), ale wymaga App Group i drugiego profilu provisioning dla rozszerzenia. Do zrobienia: rejestracja bundle id rozszerzenia i App Group przez skrypt podpisywania, drugi profil, podpis dwóch celów w workflow, włączenie celu w `project.yml`, widżet z wyborem dziecka. Największa zmiana, głównie po stronie podpisywania.
+5. **Widżety** — kod gotowy 15.09.2026: cel `MojLibrusWidget` w `project.yml` (bundle id `pl.plewinscy.dzienniczek.widget`, grupa `group.pl.plewinscy.dzienniczek`), widżet planu (mały, średni, duży) z imieniem wybranego dziecka w nagłówku, workflow podpisuje dwa cele dwoma profilami, skrypt rejestruje App ID widżetu i włącza App Groups. **Czeka na ręczny krok w portalu Apple** (grupa + przypisanie do obu App ID, API tego nie umie) i ponowne uruchomienie skryptu; do tego czasu nie tagować, bo archiwum wymaga profilu z grupą. Wybór dziecka per widżet (konfiguracja w edycji widżetu) — później, na razie widżet pokazuje dziecko wybrane w aplikacji.
 6. **Otwarte testy** — publiczny link TestFlight dla innych rodziców z klasy. Wymaga Beta App Review pierwszego buildu (zwykle 1–2 dni) i uzupełnienia opisu testów. Ryzyko: Apple może dopytać o nieoficjalnego klienta Librusa i użycie nazwy „Librus” w opisie. To proces w App Store Connect, nie kod; robimy na końcu, gdy reszta będzie stabilna.
 
 ## Ustalenia

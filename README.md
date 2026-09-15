@@ -28,9 +28,13 @@ nikogo poza Tobą i GitHubem.
    ```bash
    python3 scripts/setup_signing.py --key ~/Downloads/AuthKey_XXXXXXXXXX.p8 --key-id XXXXXXXXXX --issuer-id <Issuer ID>
    ```
-   Zakłada certyfikat *Apple Distribution*, App ID, profil App Store i wgrywa sześć
-   sekretów do repo (`gh secret set`). Klucz i `.p12` zostają w
-   `~/Library/Application Support/dzienniczek-signing/`.
+   Zakłada certyfikat *Apple Distribution*, App ID aplikacji i widżetu, włącza na nich
+   App Groups, zatrzymuje się na jeden ręczny krok (założenie grupy
+   `group.pl.plewinscy.dzienniczek` i przypisanie jej do obu App ID w portalu
+   deweloperskim — API Apple tego nie umie), po Enterze zakłada oba profile App Store
+   i wgrywa siedem sekretów do repo (`gh secret set`). Klucz i `.p12` zostają w
+   `~/Library/Application Support/dzienniczek-signing/`. Gdy grupa jest już
+   przypisana, `--no-pause` pomija czekanie.
 3. **Rekord aplikacji** (raz, ręcznie — API tego nie umie): App Store Connect →
    *Moje aplikacje* → „+” → *Nowa aplikacja*: iOS, nazwa unikalna w App Store
    (np. „Dzienniczek Plewińskich”), język polski, Bundle ID `pl.plewinscy.dzienniczek`,
