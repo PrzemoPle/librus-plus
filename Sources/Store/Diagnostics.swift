@@ -111,6 +111,15 @@ struct Diagnostics {
         return parts.joined(separator: "\n\n")
     }
 
+    /// Raw HTML of the inbox page, for reproducing message-list parsing bugs.
+    func rawInboxHTML() async -> String {
+        do {
+            return try await MessagesClient(session: session, account: account).rawInboxHTML()
+        } catch {
+            return "BŁĄD: \((error as? LocalizedError)?.errorDescription ?? "\(error)")"
+        }
+    }
+
     static func report(_ results: [DiagnosticResult]) -> String {
         var lines = ["Dzienniczek — diagnostyka \(Date().formattedPL("yyyy-MM-dd HH:mm"))"]
         for r in results {

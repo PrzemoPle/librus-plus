@@ -10,6 +10,8 @@ struct DiagnosticsView: View {
     @State private var copied = false
     @State private var dumpingTimetable = false
     @State private var timetableCopied = false
+    @State private var dumpingInbox = false
+    @State private var inboxCopied = false
 
     var body: some View {
         List {
@@ -42,6 +44,22 @@ struct DiagnosticsView: View {
                 .disabled(dumpingTimetable)
             } footer: {
                 Text("Pełna, niesformatowana odpowiedź Librusa dla ubiegłego, tego i przyszłego tygodnia — przydatne przy zgłaszaniu błędów planu lekcji (np. przeniesień). Zawiera imiona i nazwiska nauczycieli.")
+            }
+
+            Section {
+                Button {
+                    Task { await dumpInbox() }
+                } label: {
+                    HStack {
+                        Label(inboxCopied ? "Skopiowano" : "Kopiuj surowy HTML skrzynki",
+                              systemImage: inboxCopied ? "checkmark" : "doc.on.doc")
+                        Spacer()
+                        if dumpingInbox { ProgressView() }
+                    }
+                }
+                .disabled(dumpingInbox)
+            } footer: {
+                Text("Strona skrzynki odbiorczej dokładnie tak, jak wysyła ją Synergia — przydatne, gdy jakaś wiadomość ma złą datę, nadawcę albo temat. Zawiera nazwiska nadawców i tematy wiadomości.")
             }
 
             if !results.isEmpty {
@@ -114,5 +132,19 @@ struct DiagnosticsView: View {
         )
         Haptics.success()
         withAnimation(Theme.Motion.quick) { timetableCopied = true }
+    }
+
+    private func dumpInbox() async {
+        Haptics.tap()
+        dumpingInbox = true
+        inboxCopied = false
+        defer { dumpingInbox = false }
+        let html = await Diagnostics(session: app.session, account: app.repository?.account.login).rawInboxHTML()
+        UIPasteboard.general.setItems(
+            [[UTType.utf8PlainText.identifier: html]],
+            options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(10 * 60)]
+        )
+        Haptics.success()
+        withAnimation(Theme.Motion.quick) { inboxCopied = true }
     }
 }

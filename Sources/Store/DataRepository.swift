@@ -467,7 +467,7 @@ final class DataRepository {
         }
         // Sent messages are a bonus — never let them break the inbox.
         if let sent = try? await messages.messages(in: .sent) {
-            messagesSent = sent.sorted { ($0.sentDate ?? .distantPast) > ($1.sentDate ?? .distantPast) }
+            messagesSent = sent.sorted { ($0.sentDate ?? .distantFuture) > ($1.sentDate ?? .distantFuture) }
             saveCache()
         }
         if ok { messagesLastSync = Date() }
@@ -481,7 +481,9 @@ final class DataRepository {
 
     private func fetchInbox() async throws {
         let list = try await messages.messages(in: .received)
-        messagesInbox = list.sorted { ($0.sentDate ?? .distantPast) > ($1.sentDate ?? .distantPast) }
+        // An undated row is far more likely a brand-new message in a layout we
+        // don't parse yet than an ancient one — keep it at the top, not the bottom.
+        messagesInbox = list.sorted { ($0.sentDate ?? .distantFuture) > ($1.sentDate ?? .distantFuture) }
         if !seen.messageIDs.hasBaseline {
             seen.messageIDs.establishBaseline(Set(list.map(\.id)))
         }

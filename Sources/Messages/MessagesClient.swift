@@ -44,6 +44,14 @@ actor MessagesClient {
 
     func inbox() async throws -> [MessageItem] { try await messages(in: .received) }
 
+    /// The inbox page exactly as Synergia serves it — for the diagnostics screen,
+    /// so a parsing bug can be reproduced from a real row instead of guessed at.
+    func rawInboxHTML() async throws -> String {
+        try await ensureSynergiaSession()
+        let (data, _) = try await get("https://synergia.librus.pl/wiadomosci/\(Folder.received.rawValue)")
+        return String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+    }
+
     func messages(in folder: Folder) async throws -> [MessageItem] {
         try await ensureSynergiaSession()
         let (data, resp) = try await get("https://synergia.librus.pl/wiadomosci/\(folder.rawValue)")
@@ -529,29 +537,37 @@ actor MessagesClient {
             var attach = false
 
             if text.count >= 5 {
-                subject = text[3].nonEmpty ?? subject
-                sender = Self.cleanCorrespondent(text[2])
-                // Some rows carry an extra flag cell, shifting the columns — the
-                // parsed "sender" then comes out as a header word ("Nadawca") or
-                // equals the subject. Recover by scanning the leading cells.
+                // Anchor every column on the date cell rather than on fixed
+                // indices: a row with an extra leading cell (a "new" flag, say)
+                // used to shift everything by one, which left the freshest message
+                // undated — and therefore sorted to the very bottom of the inbox.
+                let dateIdx = Self.dateCellIndex(in: text) ?? 4
+                let subjectIdx = max(dateIdx - 1, 0)
+                let senderIdx = max(dateIdx - 2, 0)
+                let attachIdx = dateIdx - 3
+
+                subject = text[subjectIdx].nonEmpty ?? subject
+                sender = Self.cleanCorrespondent(text[senderIdx])
+                // The sender can still come out as a header word ("Nadawca") or
+                // equal the subject on odd layouts — scan the cells before the
+                // subject for the first thing that looks like a name.
                 if Self.looksLikeHeaderLabel(sender) || sender.isEmpty || sender == subject {
-                    sender = (0..<min(3, text.count)).reversed()
+                    sender = (0..<subjectIdx).reversed()
                         .lazy.map { Self.cleanCorrespondent(text[$0]) }
                         .first { !$0.isEmpty && $0.count > 1
                             && !Self.looksLikeHeaderLabel($0) && $0 != subject }
                         ?? "Librus"
                 }
-                dateStr = text[4]
-                let style = HTTP.firstMatch(#"style=["']([^"']*)["']"#, in: attrs[2]) ?? ""
+                dateStr = text[dateIdx]
+                let style = HTTP.firstMatch(#"style=["']([^"']*)["']"#, in: attrs[senderIdx]) ?? ""
                 unread = !style.trimmingCharacters(in: .whitespaces).isEmpty
-                attach = raw[1].range(of: "<img", options: .caseInsensitive) != nil
+                attach = attachIdx >= 0
+                    && raw[attachIdx].range(of: "<img", options: .caseInsensitive) != nil
             } else {
                 // Fallback for a different column layout.
                 subject = HTTP.firstMatch(#"<a[^>]+/wiadomosci/[0-9]+/[0-9]+/\d+[^>]*>(.*?)</a>"#, in: row)
                     .map(stripHTML)?.nonEmpty ?? subject
-                let dateIdx = text.firstIndex {
-                    $0.range(of: #"\d{4}-\d{2}-\d{2}"#, options: .regularExpression) != nil
-                }
+                let dateIdx = Self.dateCellIndex(in: text)
                 dateStr = dateIdx.map { text[$0] }
                 if let di = dateIdx, di > 0 {
                     for i in stride(from: di - 1, through: 0, by: -1)
@@ -569,7 +585,7 @@ actor MessagesClient {
             sender = Self.cleanCorrespondent(sender)
             if Self.looksLikeHeaderLabel(sender) { sender = "Librus" }
 
-            let date = LibrusDate.fromISO(dateStr)
+            let date = LibrusDate.fromScrapedCell(dateStr)
             out.append(MessageItem(
                 id: id,
                 subject: subject,
@@ -581,6 +597,12 @@ actor MessagesClient {
             ))
         }
         return out
+    }
+
+    /// Index of the cell holding the sent date — the last one that looks like a
+    /// date, so a date-like fragment in a subject doesn't win.
+    static func dateCellIndex(in cells: [String]) -> Int? {
+        cells.lastIndex { LibrusDate.looksLikeDate($0) }
     }
 
     private static let headerLabels: Set<String> =

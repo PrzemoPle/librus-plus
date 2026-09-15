@@ -49,6 +49,40 @@ enum LibrusDate {
         return fromYMD(String(string.prefix(10)))
     }
 
+    private static let dottedDateTime = formatter("dd.MM.yyyy HH:mm")
+    private static let dottedDate = formatter("dd.MM.yyyy")
+    private static let isoMinutes = formatter("yyyy-MM-dd HH:mm")
+
+    /// Date from a scraped table cell: finds the first date-like token inside
+    /// whatever else the cell holds and accepts the formats Synergia is known to
+    /// use — "2026-09-15 07:45:12", "2026-09-15 07:45", "15.09.2026 07:45",
+    /// "15.09.2026" — plus ISO 8601. nil when no date is recognisable.
+    static func fromScrapedCell(_ string: String?) -> Date? {
+        guard let string else { return nil }
+        let text = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        if let iso = HTTP.firstMatch(#"(\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?(?:[+-]\d{2}:\d{2}|Z)?)?)"#, in: text) {
+            return fromISO(iso) ?? isoMinutes.date(from: iso)
+        }
+        if let dotted = HTTP.firstMatch(#"(\d{2}\.\d{2}\.\d{4}(?: \d{2}:\d{2})?)"#, in: text) {
+            return dottedDateTime.date(from: dotted) ?? dottedDate.date(from: dotted)
+        }
+        return nil
+    }
+
+    /// True when the text carries something `fromScrapedCell` would parse.
+    static func looksLikeDate(_ string: String) -> Bool {
+        string.range(of: #"\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4}"#, options: .regularExpression) != nil
+    }
+
+    private static func formatter(_ format: String) -> DateFormatter {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = timeZone
+        f.dateFormat = format
+        return f
+    }
+
     /// Monday of the week that contains `date`.
     static func weekStart(of date: Date = Date()) -> Date {
         let comps = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
