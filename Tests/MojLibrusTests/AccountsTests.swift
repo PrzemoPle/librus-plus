@@ -108,6 +108,33 @@ final class AccountsTests: XCTestCase {
         XCTAssertEqual(AccountSummary(login: "1111111", studentName: nil).shortName, "1111111")
     }
 
+    // MARK: - Swiping between children
+
+    func testAdjacentLoginMovesForwardBackwardAndWraps() {
+        let kids = [AccountSummary(login: "1", studentName: "Anna"),
+                    AccountSummary(login: "2", studentName: "Jan"),
+                    AccountSummary(login: "3", studentName: "Ola")]
+        XCTAssertEqual(AppState.adjacentLogin(in: kids, current: "1", forward: true), "2")
+        XCTAssertEqual(AppState.adjacentLogin(in: kids, current: "3", forward: true), "1")
+        XCTAssertEqual(AppState.adjacentLogin(in: kids, current: "1", forward: false), "3")
+        XCTAssertEqual(AppState.adjacentLogin(in: kids, current: "2", forward: false), "1")
+    }
+
+    func testAdjacentLoginWithTwoChildrenTogglesEitherWay() {
+        let kids = [AccountSummary(login: "1", studentName: "Anna"),
+                    AccountSummary(login: "2", studentName: "Jan")]
+        XCTAssertEqual(AppState.adjacentLogin(in: kids, current: "1", forward: true), "2")
+        XCTAssertEqual(AppState.adjacentLogin(in: kids, current: "1", forward: false), "2")
+    }
+
+    func testAdjacentLoginIsNilForOneChildOrUnknownCurrent() {
+        let one = [AccountSummary(login: "1", studentName: "Anna")]
+        XCTAssertNil(AppState.adjacentLogin(in: one, current: "1", forward: true))
+        let two = one + [AccountSummary(login: "2", studentName: "Jan")]
+        XCTAssertNil(AppState.adjacentLogin(in: two, current: "9", forward: true))
+        XCTAssertNil(AppState.adjacentLogin(in: two, current: nil, forward: true))
+    }
+
     // MARK: - Per-child stores
 
     func testSeenStoresAreScopedPerAccount() {

@@ -3,8 +3,10 @@ import Foundation
 
 struct TimetableView: View {
     @Environment(DataRepository.self) private var repo
+    @Environment(AppState.self) private var app
 
-    @State private var weekStart = LibrusDate.defaultTimetableWeekStart()
+    /// Kept in `AppState` so the same week stays on screen when switching children.
+    private var weekStart: Date { app.timetableWeekStart }
     @State private var isLoading = false
     @State private var jumpTick = 0
     @State private var selection: LessonSelection?
@@ -54,6 +56,9 @@ struct TimetableView: View {
                         }
                         .padding(Theme.Space.lg)
                     }
+                    // The week header has its own swipe (previous / next week), so
+                    // the child swipe covers only the lesson list.
+                    .childSwipe()
                     .onAppear { jumpToToday(proxy, animated: false) }
                     .onChange(of: weekKey) { jumpToToday(proxy, animated: false) }
                     .onChange(of: days.count) { jumpToToday(proxy, animated: false) }
@@ -69,7 +74,7 @@ struct TimetableView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Dziś") {
                     Haptics.tap()
-                    withAnimation(Theme.Motion.standard) { weekStart = LibrusDate.weekStart() }
+                    withAnimation(Theme.Motion.standard) { app.timetableWeekStart = LibrusDate.weekStart() }
                     jumpTick &+= 1
                 }
             }
@@ -179,7 +184,7 @@ struct TimetableView: View {
 
     private func shift(_ d: Int) {
         Haptics.selection()
-        withAnimation(Theme.Motion.standard) { weekStart = LibrusDate.addDays(d, to: weekStart) }
+        withAnimation(Theme.Motion.standard) { app.timetableWeekStart = LibrusDate.addDays(d, to: weekStart) }
     }
 
     private func loadIfNeeded() async {

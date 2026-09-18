@@ -13,6 +13,13 @@ Punkty 1–4 są w TestFlight od buildu 1.1.0 (1005), punkt 5 od 1.2.0 (1007), 1
 5. ~~**Widżety**~~ — w TestFlight 15.09.2026 (1.2.0). Kod: cel `MojLibrusWidget` w `project.yml` (bundle id `pl.plewinscy.dzienniczek.widget`, grupa `group.pl.plewinscy.dzienniczek`), widżet planu (mały, średni, duży) z imieniem wybranego dziecka w nagłówku, workflow podpisuje dwa cele dwoma profilami, skrypt rejestruje App ID widżetu i włącza App Groups. Grupa App Group założona i przypisana ręcznie w portalu (API tego nie umie); profile odnowione skryptem z `--no-pause`. Wybór dziecka per widżet (konfiguracja w edycji widżetu) — później, na razie widżet pokazuje dziecko wybrane w aplikacji.
 6. **Otwarte testy** — publiczny link TestFlight dla innych rodziców z klasy. Wymaga Beta App Review pierwszego buildu (zwykle 1–2 dni) i uzupełnienia opisu testów. Ryzyko: Apple może dopytać o nieoficjalnego klienta Librusa i użycie nazwy „Librus” w opisie. To proces w App Store Connect, nie kod; robimy na końcu, gdy reszta będzie stabilna.
 
+## Runda 2 — spostrzeżenia z 18.09.2026
+
+7. **Data na Pulpicie** — w prawym górnym rogu, obok przełącznika dziecka: „piątek, 18 wrz”. Odświeża się sama o północy.
+8. **Karta „Plan na dziś” jest przyciskiem** — przenosi do zakładki Plan na bieżący tydzień (w weekend na następny). Gdy Plan nie jest w pasku zakładek, otwiera się jako ekran z Pulpitu.
+9. **Karta „Najbliższy wpis w terminarzu” jest przyciskiem** — przenosi do Terminarza, przewija do tego wpisu i podświetla go na dwie sekundy.
+10. **Przesuwanie między dziećmi** — poziome przesunięcie po treści ekranu pokazuje następne lub poprzednie dziecko, z przesunięciem ekranu w stronę gestu. Działa na Pulpicie, w Planie (na liście lekcji; nagłówek tygodnia nadal przewija tygodnie), Ocenach, Frekwencji, Terminarzu i Uwagach. Wiadomości i Ogłoszenia są wyłączone, bo ich wiersze mają własny gest przesunięcia. Oglądany tydzień planu zostaje ten sam po zmianie dziecka.
+
 ## Ustalenia
 
 - Kontakt w Ustawieniach i adres do opinii z TestFlight: przemyslaw@plewinski.pl.

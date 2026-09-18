@@ -2,6 +2,11 @@ import SwiftUI
 
 struct DashboardView: View {
     @Environment(DataRepository.self) private var repo
+    @Environment(AppState.self) private var app
+    @Environment(TabLayout.self) private var layout
+
+    /// A screen opened from a card when it has no tab of its own to jump to.
+    @State private var pushed: MainTab?
 
     private var todayEntries: [TimetableEntry] {
         let key = LibrusDate.ymdString(LibrusDate.weekStart())
@@ -59,10 +64,22 @@ struct DashboardView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if repo.isRefreshing { ProgressView() }
+                HStack(spacing: Theme.Space.sm) {
+                    if repo.isRefreshing { ProgressView() }
+                    // Ticks, so the date rolls over at midnight without a relaunch.
+                    TimelineView(.everyMinute) { context in
+                        Text(context.date.formattedPL("EEEE, d MMM"))
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         }
         .childSwitcher()
+        .childSwipe()
+        .navigationDestination(item: $pushed) { tab in
+            TabRoot(tab: tab)
+        }
         .refreshable { await refresh() }
         .task {
             await repo.refreshCoreIfStale()
@@ -75,6 +92,17 @@ struct DashboardView: View {
     private func refresh() async {
         await repo.refreshCore()
         await repo.loadTimetable(weekStart: LibrusDate.weekStart())
+    }
+
+    /// Jumps to the screen's own tab when it sits in the bar; pushes it here when
+    /// the user has moved it under Więcej.
+    private func open(_ tab: MainTab) {
+        Haptics.tap()
+        if layout.contains(tab) {
+            app.selectedTab = tab
+        } else {
+            pushed = tab
+        }
     }
 
     // MARK: Now / next
@@ -182,13 +210,26 @@ struct DashboardView: View {
 
     // MARK: Today's plan
 
+    /// The whole card is one button: it opens the timetable on today's week.
     private var todayCard: some View {
+        Button {
+            app.timetableWeekStart = LibrusDate.defaultTimetableWeekStart()
+            open(.timetable)
+        } label: {
+            todayCardContent
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Otwiera plan lekcji")
+    }
+
+    private var todayCardContent: some View {
         SectionCard("Plan na dziś", systemImage: "calendar") {
-            NavigationLink {
-                TimetableView()
-            } label: {
-                Text("Cały tydzień").font(.caption.weight(.semibold))
+            HStack(spacing: 2) {
+                Text("Cały tydzień")
+                Image(systemName: "chevron.right").font(.caption2.weight(.bold))
             }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.tint)
         } content: {
             if todayEntries.isEmpty {
                 Text("Brak lekcji w planie na dziś.")
@@ -223,6 +264,7 @@ struct DashboardView: View {
                 }
             }
         }
+        .contentShape(Rectangle())
     }
 
     // MARK: Recent grades
@@ -272,29 +314,42 @@ struct DashboardView: View {
 
     // MARK: Next event
 
+    /// Opens Terminarz scrolled to this very entry.
     @ViewBuilder private var nextEventCard: some View {
         if let ev = repo.nextEvent {
-            Card {
-                HStack(spacing: Theme.Space.md) {
-                    Image(systemName: "calendar.badge.exclamationmark")
-                        .font(.title3)
-                        .foregroundStyle(Color.warning)
-                        .frame(width: 28)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Najbliższy wpis w terminarzu")
+            Button {
+                app.focusedEventID = ev.id
+                open(.events)
+            } label: {
+                Card {
+                    HStack(spacing: Theme.Space.md) {
+                        Image(systemName: "calendar.badge.exclamationmark")
+                            .font(.title3)
+                            .foregroundStyle(Color.warning)
+                            .frame(width: 28)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Najbliższy wpis w terminarzu")
+                                .font(.caption).foregroundStyle(.secondary)
+                            Text(ev.content.isEmpty ? (ev.category ?? "wydarzenie") : ev.content)
+                                .font(.callout.weight(.medium))
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                            HStack(spacing: Theme.Space.sm) {
+                                if let subject = ev.subject { Text(subject) }
+                                if let date = ev.date { Text(date.dayMonthShort) }
+                            }
                             .font(.caption).foregroundStyle(.secondary)
-                        Text(ev.content.isEmpty ? (ev.category ?? "wydarzenie") : ev.content)
-                            .font(.callout.weight(.medium))
-                            .lineLimit(2)
-                        HStack(spacing: Theme.Space.sm) {
-                            if let subject = ev.subject { Text(subject) }
-                            if let date = ev.date { Text(date.dayMonthShort) }
                         }
-                        .font(.caption).foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
                     }
-                    Spacer(minLength: 0)
+                    .contentShape(Rectangle())
                 }
             }
+            .buttonStyle(.plain)
+            .accessibilityHint("Otwiera ten wpis w terminarzu")
         }
     }
 
