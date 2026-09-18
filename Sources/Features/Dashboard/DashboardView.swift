@@ -62,19 +62,7 @@ struct DashboardView: View {
         .screenBackground()
         .navigationTitle(repo.studentName.isEmpty ? "Pulpit" : repo.studentName)
         .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: Theme.Space.sm) {
-                    if repo.isRefreshing { ProgressView() }
-                    // Ticks, so the date rolls over at midnight without a relaunch.
-                    TimelineView(.everyMinute) { context in
-                        Text(context.date.formattedPL("EEEE, d MMM"))
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
+        .toolbar { TodayToolbarItem(isRefreshing: repo.isRefreshing) }
         .childSwitcher()
         .childSwipe()
         .navigationDestination(item: $pushed) { tab in
@@ -371,5 +359,39 @@ struct DashboardView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Today's date in the top-right corner of the dashboard.
+///
+/// It is information, not a control, so on iOS 26 it opts out of the glass capsule
+/// toolbar items get by default. `fixedSize` matters: without it the bar hands the
+/// item a sliver of width and the text truncates to "piątek, 1…".
+private struct TodayToolbarItem: ToolbarContent {
+    let isRefreshing: Bool
+
+    var body: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarTrailing) { label }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarTrailing) { label }
+        }
+    }
+
+    private var label: some View {
+        HStack(spacing: Theme.Space.sm) {
+            if isRefreshing { ProgressView() }
+            // Ticks, so the date rolls over at midnight without a relaunch.
+            TimelineView(.everyMinute) { context in
+                Text(context.date.formattedPL("EEEE, d MMM"))
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        }
+        .fixedSize()
+        .accessibilityElement(children: .combine)
     }
 }
