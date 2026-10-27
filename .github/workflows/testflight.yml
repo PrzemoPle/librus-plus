@@ -43,7 +43,7 @@ jobs:
       WIDGET_PROFILE_NAME: Dzienniczek Widget App Store
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -174,7 +174,7 @@ jobs:
           ls -lh build/export
 
       - name: Keep the .ipa
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Dzienniczek-${{ steps.ver.outputs.version }}-${{ steps.ver.outputs.build }}-ipa
           path: build/export/*.ipa
@@ -211,7 +211,7 @@ jobs:
 
       - name: Upload distribution logs (on failure)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: xcdistributionlogs
           path: dist-logs
