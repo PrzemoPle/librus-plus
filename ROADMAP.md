@@ -15,10 +15,10 @@ Punkty 1–4 są w TestFlight od buildu 1.1.0 (1005), punkt 5 od 1.2.0 (1007), 1
 
 ## Runda 2 — spostrzeżenia z 18.09.2026 (w TestFlight od 1.3.0)
 
-7. **Data na Pulpicie** — w prawym górnym rogu, obok przełącznika dziecka: „piątek, 18 wrz”. Odświeża się sama o północy.
-8. **Karta „Plan na dziś” jest przyciskiem** — przenosi do zakładki Plan na bieżący tydzień (w weekend na następny). Gdy Plan nie jest w pasku zakładek, otwiera się jako ekran z Pulpitu.
-9. **Karta „Najbliższy wpis w terminarzu” jest przyciskiem** — przenosi do Terminarza, przewija do tego wpisu i podświetla go na dwie sekundy.
-10. **Przesuwanie między dziećmi** — poziome przesunięcie po treści ekranu pokazuje następne lub poprzednie dziecko, z przesunięciem ekranu w stronę gestu. Działa na Pulpicie, w Planie (na liście lekcji; nagłówek tygodnia nadal przewija tygodnie), Ocenach, Frekwencji, Terminarzu i Uwagach. Wiadomości i Ogłoszenia są wyłączone, bo ich wiersze mają własny gest przesunięcia. Oglądany tydzień planu zostaje ten sam po zmianie dziecka.
+7. ~~**Data na Pulpicie**~~ — w prawym górnym rogu, obok przełącznika dziecka: „piątek, 18 wrz”. Odświeża się sama o północy. Ucinanie daty poprawione w 1.3.1.
+8. ~~**Karta „Plan na dziś” jest przyciskiem**~~ — przenosi do zakładki Plan na bieżący tydzień (w weekend na następny). Gdy Plan nie jest w pasku zakładek, otwiera się jako ekran z Pulpitu.
+9. ~~**Karta „Najbliższy wpis w terminarzu” jest przyciskiem**~~ — przenosi do Terminarza, przewija do tego wpisu i podświetla go na dwie sekundy.
+10. ~~**Przesuwanie między dziećmi**~~ — poziome przesunięcie po treści ekranu pokazuje następne lub poprzednie dziecko, z przesunięciem ekranu w stronę gestu. Działa na Pulpicie, w Planie (na liście lekcji; nagłówek tygodnia nadal przewija tygodnie), Ocenach, Frekwencji, Terminarzu i Uwagach. Wiadomości i Ogłoszenia są wyłączone, bo ich wiersze mają własny gest przesunięcia. Oglądany tydzień planu zostaje ten sam po zmianie dziecka.
 
 ## Ustalenia
 
